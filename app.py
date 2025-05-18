@@ -84,16 +84,22 @@ def analyze_movement(series, dates):
     # Determine if the movement is primarily seasonal
     is_seasonal = seasonal_strength > 0.3 and amplitude > 0.1
     
+    # Convert all values to float and handle NaN/Inf
+    def safe_float(value):
+        if pd.isna(value) or np.isinf(value):
+            return 0.0
+        return float(value)
+    
     return {
         'has_seasonal': bool(is_seasonal),
-        'amplitude': float(amplitude),
+        'amplitude': safe_float(amplitude),
         'is_consistent': bool(is_consistent),
-        'summer_avg': float(summer),
-        'winter_avg': float(winter),
+        'summer_avg': safe_float(summer),
+        'winter_avg': safe_float(winter),
         'is_progressive': bool(is_progressive),
-        'slope': float(slope),
-        'r_squared': float(r_squared),
-        'seasonal_strength': float(seasonal_strength),
+        'slope': safe_float(slope),
+        'r_squared': safe_float(r_squared),
+        'seasonal_strength': safe_float(seasonal_strength),
         'movement_type': 'Progressive' if is_progressive else 'Seasonal' if is_seasonal else 'Stable'
     }
 
