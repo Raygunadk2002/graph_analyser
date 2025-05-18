@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Structural Movement Graph Analyser</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-8">Structural Movement Analysis</h1>
+        
+        <!-- File Upload Section -->
+        <div class="mb-8">
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                <input type="file" id="file-input" class="hidden" accept=".csv,.xlsx,.xls">
+                <label for="file-input" class="cursor-pointer">
+                    <div class="text-gray-600 mb-4">
+                        <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                    </div>
+                    <p class="text-lg font-medium text-gray-700">Click to upload or drag and drop</p>
+                    <p class="text-sm text-gray-500 mt-2">CSV, XLSX, or XLS files up to 10MB</p>
+                </label>
+            </div>
+            <div id="upload-progress" class="hidden mt-4">
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+                <div id="upload-status" class="text-center mt-2 text-gray-600"></div>
+            </div>
+        </div>
+        
+        <!-- Postcode Input for Rainfall -->
+        <div class="mb-6">
+            <label for="postcode-input" class="block text-gray-700 font-medium mb-2">Enter UK Postcode for Rainfall Data:</label>
+            <div class="flex space-x-2">
+                <input type="text" id="postcode-input" class="border border-gray-300 rounded-lg px-4 py-2 w-48" placeholder="e.g. SW1A 1AA">
+                <button id="fetch-rainfall" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Get Rainfall</button>
+            </div>
+            <div id="rainfall-status" class="mt-2 text-gray-600"></div>
+        </div>
+        
+        <!-- Column Mapping (future UI) -->
+        <div id="column-mapping" class="mb-6 hidden">
+            <label class="block text-gray-700 font-medium mb-2">Map columns:</label>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="column-mapping-fields"></div>
+        </div>
+        
+        <!-- Analysis Tabs -->
+        <div class="mb-8">
+            <!-- Tab Navigation -->
+            <div class="mb-6 border-b border-gray-200">
+                <nav class="flex space-x-8" id="tab-nav">
+                    <button class="tab-btn text-lg py-2 px-4 border-b-2 font-medium focus:outline-none" data-tab="basic" id="tab-basic">Basic Graph</button>
+                    <button class="tab-btn text-lg py-2 px-4 border-b-2 font-medium focus:outline-none" data-tab="advanced" id="tab-advanced">Seasonality Analysis</button>
+                    <button class="tab-btn text-lg py-2 px-4 border-b-2 font-medium focus:outline-none" data-tab="further" id="tab-further">Further Time Series Analysis</button>
+                </nav>
+            </div>
+        </div>
+        
+        <!-- Basic Graph Section -->
+        <div id="basic-graph-section" class="mb-6 hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Sensor Data & Rainfall</h2>
+            <!-- Sensor Information -->
+            <div class="mb-4">
+                <p class="block text-gray-700 font-medium mb-2">Displaying all sensor data (X, Y, T) on the same graph.</p>
+            </div>
+            <div id="basic-graph-container" class="w-full h-96 mb-8"></div>
+            <div id="correlation-section" class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="font-semibold text-lg mb-2">Rainfall-Movement Correlation</h3>
+                <div id="correlation-info" class="text-gray-700"></div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="mt-8">
+            <div class="mb-6">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Analysis Results</h2>
+                <div id="analysis-summary" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            </div>
+
+            <div class="mb-6">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Graphs</h2>
+                <div id="graphs-container" class="space-y-6"></div>
+            </div>
+
+            <div class="flex justify-end space-x-4">
+                <button id="generate-report" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors">
+                    Generate Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add initialization check
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM fully loaded and parsed');
+            initializeApp();
+        });
+
+        // Main initialization function
+        function initializeApp() {
+            try {
+                console.log('Initializing application...');
+                
+                // Initialize tab switching
+                initializeTabs();
+                
+                // Initialize file upload
+                initializeFileUpload();
+                
+                // Test server connection
+                testServer();
+                
+                console.log('Application initialized successfully');
+            } catch (error) {
+                console.error('Error initializing application:', error);
+                alert('There was an error loading the application. Please check the console for details.');
+            }
+        }
+
+        // Tab switching logic
+        function initializeTabs() {
+            const tabNav = document.getElementById('tab-nav');
+            const basicGraphSection = document.getElementById('basic-graph-section');
+            const resultsSection = document.getElementById('results');
+
+            if (!tabNav) {
+                console.error('Tab navigation element not found');
+                return;
+            }
+
+            function switchTab(tabName) {
+                // Remove active class from all buttons
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.classList.remove('border-blue-600', 'text-blue-600');
+                });
+                
+                // Add active class to selected button
+                const selectedTab = document.getElementById(`tab-${tabName}`);
+                if (selectedTab) {
+                    selectedTab.classList.add('border-blue-600', 'text-blue-600');
+                }
+                
+                // Show/hide appropriate sections
+                if (tabName === 'basic') {
+                    if (basicGraphSection) basicGraphSection.classList.remove('hidden');
+                    if (resultsSection) resultsSection.classList.add('hidden');
+                } else if (tabName === 'advanced' || tabName === 'further') {
+                    if (basicGraphSection) basicGraphSection.classList.add('hidden');
+                    if (resultsSection) resultsSection.classList.remove('hidden');
+                    
+                    // If switching to further analysis tab, perform additional analysis
+                    if (tabName === 'further' && window.uploadedData && window.uploadedData.plot_data) {
+                        const availableSensors = Object.keys(window.uploadedData.plot_data);
+                        if (availableSensors.length > 0) {
+                            const selectedColumn = availableSensors[0];
+                            runFurtherAnalysis(selectedColumn);
+                        }
+                    }
+                }
+            }
+
+            // Add event listeners to tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const tabName = e.target.dataset.tab;
+                    switchTab(tabName);
+                });
+            });
+
+            // Function to run further analysis
+            async function runFurtherAnalysis(column) {
+                const graphsContainer = document.getElementById('graphs-container');
+                if (!graphsContainer) return;
+
+                try {
+                    // Show loading indicator
+                    graphsContainer.innerHTML = '<div class="p-4 bg-blue-50 rounded-lg"><p class="text-center text-blue-600">Running advanced analysis, please wait...</p></div>';
+
+                    // Get values for the selected column
+                    const values = window.uploadedData.plot_data[column].values;
+                                            
+                                            if (!values || !Array.isArray(values) || values.length === 0) {
+                                                throw new Error("No valid data values found for this column");
+                                            }
+                                            
+                    // Clean the values array and convert to numbers
+                                            const cleanedValues = values.map(v => {
+                        if (v === null || v === undefined || v === '') {
+                                                    return null;
+                                                }
+                        const num = Number(v);
+                        return isNaN(num) ? null : num;
+                    }).filter(v => v !== null);
+                    
+                    if (cleanedValues.length < 10) {
+                        throw new Error("Not enough valid data points for analysis");
+                    }
+                    
+                    console.log('Sending data for analysis:', {
+                        column,
+                        dataPoints: cleanedValues.length,
+                        sampleValues: cleanedValues.slice(0, 5)
+                    });
+                    
+                    // Send the data in the correct format
+                    const response = await axios.post('/timeseries-analysis', {
+                        data: cleanedValues
+                    }, {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.data) {
+                        throw new Error("No response data received from server");
+                    }
+                    
+                    // Display the results
+                    const result = response.data;
+                    let html = `
+                        <div class="bg-white p-4 rounded-lg shadow mb-6">
+                            <h3 class="font-semibold text-xl mb-4">Time Series Analysis Results</h3>
+                                                <div class="mb-4">
+                                <h4 class="font-medium text-lg mb-2">Pattern Classification</h4>
+                                <p class="text-gray-700">${result.patterns}</p>
+                                                </div>
+                                            `;
+                                            
+                    if (result.motifs) {
+                        html += `
+                                                    <div class="mb-4">
+                                <h4 class="font-medium text-lg mb-2">Repeating Patterns</h4>
+                                <p class="text-gray-700">${result.motifs}</p>
+                                                    </div>
+                                                `;
+                                            }
+                                            
+                    if (result.anomalies) {
+                        html += `
+                                                    <div class="mb-4">
+                                <h4 class="font-medium text-lg mb-2">Anomalies Detected</h4>
+                                <p class="text-gray-700">${result.anomalies}</p>
+                                                    </div>
+                                                `;
+                                            }
+                                            
+                    if (result.shape_classification) {
+                        html += `
+                                                    <div class="mb-4">
+                                <h4 class="font-medium text-lg mb-2">Shape Classification</h4>
+                                <p class="text-gray-700">${result.shape_classification}</p>
+                                                    </div>
+                                                `;
+                                            }
+                                            
+                    // Add thermal analysis section if available and if this is temperature data
+                    if (result.thermal_analysis && column === 'T') {
+                        html += `
+                                                    <div class="mb-4">
+                                <h4 class="font-medium text-lg mb-2">Thermal Analysis</h4>
+                                <p class="text-gray-700">${result.thermal_analysis.analysis}</p>
+                                <ul class="list-disc list-inside mt-2">
+                                    <li>Mean Temperature: ${result.thermal_analysis.mean_temperature}°C</li>
+                                    <li>Temperature Range: ${result.thermal_analysis.temperature_range}</li>
+                                    <li>Temperature Variability: ${result.thermal_analysis.temperature_std}°C</li>
+                                                            </ul>
+                                                    </div>
+                                                `;
+                                            }
+                                            
+                    html += '</div>';
+                    graphsContainer.innerHTML = html;
+                                            
+                                        } catch (error) {
+                    console.error('Analysis error:', error);
+                    graphsContainer.innerHTML = `
+                                                <div class="bg-white p-4 rounded-lg shadow mb-6">
+                            <h3 class="font-semibold text-xl mb-4 text-red-600">Analysis Failed</h3>
+                                                    <div class="mb-4 p-4 bg-red-50 rounded-lg">
+                                <p class="text-red-600">${error.message}</p>
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }
+            }
+        }
+        
+        // Initialize file upload handlers
+        function initializeFileUpload() {
+            // Get all the required DOM elements
+            const fileInput = document.getElementById('file-input');
+            const uploadProgress = document.getElementById('upload-progress');
+            const uploadStatus = document.getElementById('upload-status');
+            const analysisSummary = document.getElementById('analysis-summary');
+            const graphsContainer = document.getElementById('graphs-container');
+            const sensorSelect = document.getElementById('sensor-select');
+            const columnMappingSection = document.getElementById('column-mapping');
+            const columnMappingFields = document.getElementById('column-mapping-fields');
+            const rainfallStatus = document.getElementById('rainfall-status');
+            const postcodeInput = document.getElementById('postcode-input');
+            const fetchRainfallBtn = document.getElementById('fetch-rainfall');
+            const generateReportBtn = document.getElementById('generate-report');
+            
+            // Check that required elements exist
+            if (!fileInput) {
+                console.error('File input element not found');
+                return;
+            }
+            
+            // Fields to map
+            const requiredFields = [
+                { key: 'time', label: 'Time/Date' },
+                { key: 'x', label: 'X Axis' },
+                { key: 'y', label: 'Y Axis' },
+                { key: 'z', label: 'Z Axis' },
+                { key: 't', label: 'Temperature' }
+            ];
+            
+            // Global variables
+            window.detectedColumns = [];
+            window.columnMapping = {};
+            window.uploadedData = null;
+            window.rainfallData = null;
+            
+            // Test server connection
+            if (fileInput) {
+                fileInput.addEventListener('change', handleFileUpload);
+            }
+            
+            // Initialize rainfall data fetching
+            if (fetchRainfallBtn && postcodeInput) {
+                fetchRainfallBtn.addEventListener('click', handleRainfallFetch);
+            }
+            
+            // Initialize report generation
+            if (generateReportBtn) {
+                generateReportBtn.addEventListener('click', handleReportGeneration);
+            }
+            
+            // Update UI based on file selection
+            if (fileInput) {
+                fileInput.addEventListener('change', updateUI);
+            }
+            
+            // File upload handler
+            async function handleFileUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // Reset data
+                window.uploadedData = null;
+                
+                // Show progress bar and status
+                if (uploadProgress) {
+                    uploadProgress.classList.remove('hidden');
+                    const progressBar = uploadProgress.querySelector('.bg-blue-600');
+                    if (progressBar) progressBar.style.width = '0%';
+                }
+                
+                if (uploadStatus) {
+                    uploadStatus.textContent = 'Uploading file...';
+                    uploadStatus.className = 'text-center mt-2 text-blue-600';
+                }
+
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    if (uploadStatus) uploadStatus.textContent = 'Processing file...';
+
+                    console.log('Uploading file:', file.name);
+                    const response = await axios.post('/upload', formData, {
+                        headers: {
+                            'Content-Type': 'multipart/form-data'
+                        },
+                        onUploadProgress: function(progressEvent) {
+                            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                            console.log('Upload progress:', percentCompleted);
+                            if (uploadProgress) {
+                                const progressBar = uploadProgress.querySelector('.bg-blue-600');
+                                if (progressBar) progressBar.style.width = percentCompleted + '%';
+                            }
+                        }
+                    });
+
+                    console.log('Upload response:', response.data);
+                    
+                    if (response.data.status === 'success') {
+                        if (uploadStatus) {
+                            uploadStatus.textContent = 'File uploaded successfully!';
+                            uploadStatus.className = 'text-center mt-2 text-green-600';
+                        }
+                        window.uploadedData = response.data.data;
+                        
+                        // Clear any previously plotted graph and sensor dropdown to avoid showing stale data
+                        const basicGraphContainer = document.getElementById('basic-graph-container');
+                        if (basicGraphContainer) {
+                            Plotly.purge(basicGraphContainer);
+                        }
+                        if (sensorSelect) {
+                            sensorSelect.innerHTML = '';
+                        }
+
+                        // Hide the basic graph section until new analysis is completed
+                        const graphSection = document.getElementById('basic-graph-section');
+                        if (graphSection) {
+                            graphSection.classList.add('hidden');
+                        }
+
+                        window.uploadedData.filename = file.name;
+                        window.detectedColumns = window.uploadedData.columns || [];
+                        
+                        // Enable postcode input and fetch button
+                        const postcodeInput = document.getElementById('postcode-input');
+                        const fetchRainfallBtn = document.getElementById('fetch-rainfall');
+                        if (postcodeInput) postcodeInput.disabled = false;
+                        if (fetchRainfallBtn) fetchRainfallBtn.disabled = false;
+                        
+                        // Show column mapping
+                        showColumnMapping();
+                        
+                        // Update UI state
+                        updateUI();
+                    } else {
+                        throw new Error(response.data.detail || 'Unexpected response format');
+                    }
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    const errorMessage = error.response?.data?.detail || error.message;
+                    if (uploadStatus) {
+                        uploadStatus.textContent = 'Error: ' + errorMessage;
+                        uploadStatus.className = 'text-center mt-2 text-red-600';
+                    }
+                }
+            }
+            
+            // Function to show column mapping UI
+            function showColumnMapping() {
+                if (!columnMappingSection || !columnMappingFields) {
+                    console.error('Column mapping elements not found');
+                    return;
+                }
+                
+                if (!window.detectedColumns || window.detectedColumns.length === 0) {
+                    console.error('No columns detected in uploaded file');
+                    return;
+                }
+                
+                // Reset mapping UI
+                columnMappingFields.innerHTML = '';
+                window.columnMapping = {};
+                
+                // Show the column mapping section
+                columnMappingSection.classList.remove('hidden');
+                
+                // Create fields for each required column
+                requiredFields.forEach(field => {
+                    const fieldContainer = document.createElement('div');
+                    fieldContainer.className = 'mb-4';
+                    
+                    const label = document.createElement('label');
+                    label.className = 'block text-gray-700 font-medium mb-2';
+                    label.textContent = `Select column for ${field.label}:`;
+                    
+                    const select = document.createElement('select');
+                    select.className = 'border border-gray-300 rounded-lg px-4 py-2 w-full';
+                    select.id = `mapping-${field.key}`;
+                    
+                    // Add empty option
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = '-- Select column --';
+                    select.appendChild(emptyOption);
+                    
+                    // Add options for each detected column
+                    window.detectedColumns.forEach(column => {
+                        const option = document.createElement('option');
+                        option.value = column;
+                        option.textContent = column;
+                        
+                        // Auto-select if column name matches
+                        if (field.key === 'time' && column.toLowerCase() === 'date') {
+                            option.selected = true;
+                            window.columnMapping[field.key] = column;
+                        } else if (field.key === 't' && (column.toLowerCase().includes('temp') || column === 'T')) {
+                            option.selected = true;
+                            window.columnMapping[field.key] = column;
+                            console.log('Auto-selected temperature column:', column);
+                        } else if (column.toLowerCase().includes(field.key.toLowerCase())) {
+                            option.selected = true;
+                            window.columnMapping[field.key] = column;
+                        }
+                        
+                        select.appendChild(option);
+                    });
+                    
+                    // Add event listener for selection change
+                    select.addEventListener('change', (e) => {
+                        const selectedValue = e.target.value;
+                        if (selectedValue) {
+                            window.columnMapping[field.key] = selectedValue;
+                            console.log(`Updated mapping for ${field.key}:`, selectedValue);
+                        } else {
+                            delete window.columnMapping[field.key];
+                            console.log(`Removed mapping for ${field.key}`);
+                        }
+                        console.log('Current mapping:', window.columnMapping);
+                        updateAnalyzeButton();
+                    });
+                    
+                    fieldContainer.appendChild(label);
+                    fieldContainer.appendChild(select);
+                    columnMappingFields.appendChild(fieldContainer);
+                });
+                
+                // Add analyze button
+                const buttonContainer = document.createElement('div');
+                buttonContainer.className = 'mt-4';
+                
+                const analyzeButton = document.createElement('button');
+                analyzeButton.id = 'analyze-button';
+                analyzeButton.className = 'bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors';
+                analyzeButton.textContent = 'Analyze Data';
+                analyzeButton.addEventListener('click', handleAnalyze);
+                
+                buttonContainer.appendChild(analyzeButton);
+                columnMappingFields.appendChild(buttonContainer);
+                
+                updateAnalyzeButton();
+                
+                // Log initial mapping
+                console.log('Initial column mapping:', window.columnMapping);
+            }
+            
+            // Function to update analyze button state
+            function updateAnalyzeButton() {
+                const analyzeButton = document.getElementById('analyze-button');
+                if (!analyzeButton) return;
+                
+                // Time field is required, at least one of X/Y/Z is required
+                const hasTimeField = window.columnMapping && window.columnMapping.time;
+                const hasAxisField = window.columnMapping && (window.columnMapping.x || window.columnMapping.y || window.columnMapping.z);
+                
+                analyzeButton.disabled = !(hasTimeField && hasAxisField);
+                analyzeButton.className = analyzeButton.disabled 
+                    ? 'bg-gray-400 cursor-not-allowed text-white px-6 py-2 rounded-lg'
+                    : 'bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors';
+            }
+            
+            // Function to handle analyze button click
+            async function handleAnalyze() {
+                const uploadStatus = document.getElementById('upload-status');
+                const postcodeInput = document.getElementById('postcode-input');
+                const fetchRainfallBtn = document.getElementById('fetch-rainfall');
+                
+                if (!window.uploadedData || !window.uploadedData.filename) {
+                    if (uploadStatus) {
+                        uploadStatus.textContent = 'Please upload a file first.';
+                        uploadStatus.className = 'text-center mt-2 text-red-600';
+                    }
+                    return;
+                }
+                
+                try {
+                    if (uploadStatus) {
+                        uploadStatus.textContent = 'Analyzing data...';
+                        uploadStatus.className = 'text-center mt-2 text-blue-600';
+                    }
+                    
+                    // Disable inputs during analysis
+                    if (postcodeInput) postcodeInput.disabled = true;
+                    if (fetchRainfallBtn) fetchRainfallBtn.disabled = true;
+                    
+                    // The server is expecting a multipart/form-data with both a file and mapping
+                    const formData = new FormData();
+                    
+                    // Add the filename to the mapping so the backend knows which file to use
+                    const mappingWithFilename = {
+                        ...window.columnMapping,
+                        filename: window.uploadedData.filename
+                    };
+                    
+                    // Log the mapping for debugging
+                    console.log('Current column mapping:', window.columnMapping);
+                    console.log('Sending mapping with filename:', mappingWithFilename);
+                    
+                    formData.append('mapping', JSON.stringify(mappingWithFilename));
+                    
+                    const response = await axios.post('/analyse', formData);
+                    
+                    if (response.data && response.data.status === 'success') {
+                        // Clear previous data completely to prevent phantom data
+                        window.uploadedData = response.data.data;
+                        
+                        // Log the response data for debugging
+                        console.log('Analysis response:', response.data);
+                        console.log('Plot data:', response.data.data.plot_data);
+                        
+                        // Show success message
+                        if (uploadStatus) {
+                            uploadStatus.textContent = 'Analysis complete!';
+                            uploadStatus.className = 'text-center mt-2 text-green-600';
+                        }
+                        
+                        // Update the UI with the analysis results
+                        updateUIWithResults();
+                        
+                        // Enable the postcode input and fetch button
+                        if (postcodeInput) postcodeInput.disabled = false;
+                        if (fetchRainfallBtn) fetchRainfallBtn.disabled = false;
+                        
+                        // Show the basic graph section
+                        const basicGraphSection = document.getElementById('basic-graph-section');
+                        if (basicGraphSection) {
+                            basicGraphSection.classList.remove('hidden');
+                        }
+                        
+                        // Update the graph
+                        updateGraph(response.data.data.plot_data);
+                    } else {
+                        throw new Error(response.data.detail || 'Unexpected response format');
+                    }
+                } catch (error) {
+                    console.error('Analysis error:', error);
+                    let errorMessage;
+                    
+                    if (error.response) {
+                        errorMessage = error.response.data.detail || error.response.data.message || error.message;
+                        console.error('Error response:', error.response.data);
+                    } else if (error.request) {
+                        errorMessage = 'No response from server. Check your connection.';
+                    } else {
+                        errorMessage = error.message;
+                    }
+                    
+                    if (uploadStatus) {
+                        uploadStatus.textContent = 'Error: ' + errorMessage;
+                        uploadStatus.className = 'text-center mt-2 text-red-600';
+                    }
+                    
+                    // Re-enable inputs even if there was an error
+                    if (postcodeInput) postcodeInput.disabled = false;
+                    if (fetchRainfallBtn) fetchRainfallBtn.disabled = false;
+                }
+            }
+            
+            // Function to update UI with analysis results
+            function updateUIWithResults() {
+                // Store all available sensors for reference in global variable
+                window.availableSensors = Object.keys(window.uploadedData.plot_data || {});
+                console.log('Available sensors:', window.availableSensors);
+                console.log('Plot data:', window.uploadedData.plot_data);
+                
+                // Update graph with all sensor data
+                updateGraph(window.uploadedData.plot_data);
+                
+                // Show the basic graph section and tab
+                document.getElementById('basic-graph-section')?.classList.remove('hidden');
+                document.getElementById('tab-basic')?.click();
+            }
+            
+            // Function to update the graph with the analysis results
+            function updateGraph(data) {
+                console.log('Updating graph with data:', data);
+                console.log('Data keys:', Object.keys(data));
+                
+                // Check if data is valid
+                if (!data || typeof data !== 'object') {
+                    console.error('Invalid data provided to updateGraph:', data);
+                    return;
+                }
+                
+                // Create array for traces
+                const traces = [];
+                const colors = {
+                    'X': '#1f77b4',  // blue
+                    'Y': '#ff7f0e',  // orange
+                    'T': '#2ca02c',  // green
+                    'Z': '#d62728'   // red
+                };
+                
+                // Process each sensor's data
+                Object.entries(data).forEach(([sensor, sensorData]) => {
+                    console.log(`Processing ${sensor} data:`, sensorData);
+                    
+                    if (!sensorData || !sensorData.time || !sensorData.values) {
+                        console.log(`Skipping ${sensor} - invalid data`);
+                        return;
+                    }
+                    
+                    // Convert string values to numbers and filter out invalid values
+                    const validData = sensorData.time.map((time, index) => {
+                        if (!time || !sensorData.values[index]) {
+                            return null;
+                        }
+                        const value = parseFloat(sensorData.values[index]);
+                        return isNaN(value) ? null : { time, value };
+                    }).filter(item => item !== null);
+                    
+                    if (validData.length === 0) {
+                        console.log(`Skipping ${sensor} - no valid data points`);
+                        return;
+                    }
+                    
+                    console.log(`Adding trace for ${sensor} with ${validData.length} valid points`);
+                    console.log(`Sample data for ${sensor}:`, validData.slice(0, 3));
+                    
+                    // Create trace for this sensor
+                    const trace = {
+                        x: validData.map(d => d.time),
+                        y: validData.map(d => d.value),
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: sensor,
+                        line: {
+                            color: colors[sensor] || '#000000',
+                            width: 2
+                        }
+                    };
+                    
+                    // Put temperature on its own axis
+                    if (sensor === 'T') {
+                        trace.yaxis = 'y2';
+                        console.log('Setting temperature trace to y2 axis');
+                    }
+                    
+                    traces.push(trace);
+                });
+                
+                // Only create the graph if we have valid traces
+                if (traces.length === 0) {
+                    console.error('No valid traces to plot');
+                    return;
+                }
+                
+                console.log('Final traces:', traces);
+                
+                // Create layout with dual axes
+                const layout = {
+                    title: 'Sensor Data Over Time',
+                    xaxis: {
+                        title: 'Time',
+                        showgrid: true,
+                        gridcolor: '#E5E7EB'
+                    },
+                    yaxis: {
+                        title: 'Movement (mm)',
+                        showgrid: true,
+                        gridcolor: '#E5E7EB'
+                    },
+                    yaxis2: {
+                        title: 'Temperature (°C)',
+                        overlaying: 'y',
+                        side: 'right',
+                        showgrid: false,
+                        titlefont: { color: colors['T'] },
+                        tickfont: { color: colors['T'] }
+                    },
+                    plot_bgcolor: '#FFFFFF',
+                    paper_bgcolor: '#FFFFFF',
+                    font: {
+                        family: 'Arial, sans-serif',
+                        size: 12,
+                        color: '#1F2937'
+                    },
+                    margin: {
+                        l: 50,
+                        r: 50,
+                        t: 50,
+                        b: 50
+                    },
+                    showlegend: true,
+                    legend: {
+                        x: 1.1,
+                        y: 1,
+                        bgcolor: '#FFFFFF',
+                        bordercolor: '#E5E7EB',
+                        borderwidth: 1
+                    }
+                };
+                
+                // Create the graph
+                Plotly.newPlot('basic-graph-container', traces, layout);
+            }
+            
+            // Rainfall fetching handler
+            async function handleRainfallFetch() {
+                const postcode = postcodeInput.value.trim();
+                if (!postcode) {
+                    if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-red-600">Please enter a UK postcode</span>';
+                    return;
+                }
+                
+                try {
+                    // Show loading message
+                    if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-blue-600">Converting postcode to coordinates...</span>';
+                    
+                    // Step 1: Convert postcode to lat/lon
+                    const geocodeResponse = await axios.post('/geocode', null, {
+                        params: { postcode: postcode }
+                    });
+                    
+                    if (geocodeResponse.data.error) {
+                        if (rainfallStatus) rainfallStatus.innerHTML = `<span class="text-red-600">Error: ${geocodeResponse.data.error}</span>`;
+                        return;
+                    }
+                    
+                    const { latitude, longitude } = geocodeResponse.data;
+                    if (!latitude || !longitude) {
+                        if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-red-600">Could not find coordinates for this postcode</span>';
+                        return;
+                    }
+                    
+                    // Step 2: Get date range from sensor data
+                    if (!window.uploadedData || !window.uploadedData.plot_data) {
+                        if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-red-600">Please upload sensor data first</span>';
+                        return;
+                    }
+                    
+                    // Get the first available sensor data with time information
+                    const availableSensors = Object.keys(window.uploadedData.plot_data || {});
+                    if (availableSensors.length === 0) {
+                        if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-red-600">No valid sensor data found</span>';
+                        return;
+                    }
+                    
+                    const selectedColumn = availableSensors[0]; // Use first available sensor
+                    
+                    // Get time range from the data
+                    const timeData = window.uploadedData.plot_data[selectedColumn].time;
+                    if (!timeData || !Array.isArray(timeData) || timeData.length < 2) {
+                        if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-red-600">No valid time data found</span>';
+                        return;
+                    }
+                    
+                    // Format dates for API call (YYYY-MM-DD)
+                    const startDate = timeData[0].split('T')[0];
+                    const endDate = timeData[timeData.length - 1].split('T')[0];
+                    
+                    if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-blue-600">Fetching rainfall data...</span>';
+                    
+                    // Step 3: Get rainfall data
+                    const rainfallResponse = await axios.post('/rainfall', null, {
+                        params: { 
+                            lat: latitude, 
+                            lon: longitude,
+                            start_date: startDate,
+                            end_date: endDate
+                        }
+                    });
+                    
+                    // Log the full rainfall response for debugging
+                    console.log('Full rainfall response:', rainfallResponse.data);
+                    
+                    if (rainfallResponse.data.error) {
+                        if (rainfallStatus) rainfallStatus.innerHTML = `<span class="text-red-600">Error: ${rainfallResponse.data.error}</span>`;
+                        return;
+                    }
+                    
+                    // Extract dates and values from the response
+                    const dates = rainfallResponse.data.dates;
+                    const values = rainfallResponse.data.rainfall;
+                    
+                    console.log('Extracted rainfall data:', { dates, values });
+                    
+                    if (!Array.isArray(dates) || !Array.isArray(values) || dates.length === 0 || values.length === 0) {
+                        console.error('Empty or invalid rainfall data:', { dates, values });
+                        if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-red-600">No rainfall data available for this period</span>';
+                        return;
+                    }
+                    
+                    // Store the rainfall data
+                    window.rainfallData = {
+                        dates: dates,
+                        values: values.map(v => {
+                            const num = Number(v);
+                            return isNaN(num) ? 0 : num; // Convert to numbers, use 0 for invalid values
+                        })
+                    };
+                    
+                    if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-green-600">Rainfall data loaded successfully!</span>';
+                    
+                    // Update the graph to include rainfall data
+                    updateGraphWithRainfall();
+                    
+                    // Calculate and show the correlation
+                    calculateRainfallCorrelation();
+                    
+                } catch (error) {
+                    console.error('Error fetching rainfall data:', error);
+                    if (rainfallStatus) {
+                        const errorMsg = error.response?.data?.error || error.response?.data?.detail || error.message;
+                        rainfallStatus.innerHTML = `<span class="text-red-600">Error: ${errorMsg}</span>`;
+                    }
+                }
+            }
+            
+            // Report generation handler
+            async function handleReportGeneration() {
+                try {
+                    const response = await axios.post('/generate-report');
+                    alert('Report generated successfully!');
+                } catch (error) {
+                    alert('Error generating report: ' + (error.response?.data?.detail || error.message));
+                }
+            }
+            
+            // Function to update graph with rainfall data
+            function updateGraphWithRainfall() {
+                const basicGraphContainer = document.getElementById('basic-graph-container');
+                if (!basicGraphContainer || !uploadedData || !uploadedData.plot_data || !window.rainfallData) {
+                    console.error("Missing elements for rainfall graph update");
+                    return;
+                }
+                
+                // Get the existing sensor traces
+                const existingTraces = basicGraphContainer.data || [];
+                if (existingTraces.length === 0) {
+                    console.error("No existing traces to add rainfall data to");
+                    return;
+                }
+                
+                // Create rainfall trace
+                const rainfallTrace = {
+                    x: window.rainfallData.dates,
+                    y: window.rainfallData.values,
+                    type: 'bar',
+                    name: 'Rainfall',
+                    marker: { color: 'rgba(0, 128, 255, 0.5)' },
+                    yaxis: 'y2'
+                };
+                
+                // Create temperature trace if available
+                let temperatureTrace = null;
+                if (uploadedData.plot_data['T']) {
+                    temperatureTrace = {
+                        x: uploadedData.plot_data['T'].time,
+                        y: uploadedData.plot_data['T'].values,
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        name: 'Temperature',
+                        line: { color: 'rgb(255, 128, 0)', width: 2 },
+                        marker: { size: 4 },
+                        yaxis: 'y2'
+                    };
+                }
+                
+                // Include all existing traces plus the rainfall and temperature traces
+                const allTraces = [...existingTraces];
+                if (temperatureTrace) {
+                    allTraces.push(temperatureTrace);
+                }
+                allTraces.push(rainfallTrace);
+                
+                // Create updated layout with dual axes
+                const layout = {
+                    title: `Sensor Data with Rainfall and Temperature (${window.uploadedData?.filename || 'dataset'})`,
+                    xaxis: {
+                        title: 'Date/Time',
+                        tickformat: '%Y-%m-%d'
+                    },
+                    yaxis: {
+                        title: 'Sensor Value',
+                        autorange: true
+                    },
+                    yaxis2: {
+                        title: 'Rainfall (mm) / Temperature (°C)',
+                        titlefont: { color: 'rgb(0, 128, 255)' },
+                        tickfont: { color: 'rgb(0, 128, 255)' },
+                        overlaying: 'y',
+                        side: 'right',
+                        autorange: true
+                    },
+                    margin: { t: 40 },
+                    showlegend: true,
+                    legend: {
+                        orientation: 'h',
+                        y: -0.2
+                    }
+                };
+                
+                // Plot the graph with all traces including rainfall and temperature
+                Plotly.newPlot(basicGraphContainer, allTraces, layout, {responsive: true});
+                
+                console.log("Graph updated with rainfall and temperature data");
+            }
+            
+            // Function to calculate and display rainfall correlation
+            function calculateRainfallCorrelation() {
+                if (!uploadedData || !uploadedData.plot_data || !window.rainfallData) {
+                    console.error("Missing data for correlation calculation");
+                    return;
+                }
+                
+                const correlationInfo = document.getElementById('correlation-info');
+                if (!correlationInfo) return;
+                
+                // Clear previous correlation information
+                correlationInfo.innerHTML = '';
+                
+                // Create correlation data for each sensor
+                const sensors = Object.keys(uploadedData.plot_data).filter(s => ['X', 'Y', 'T'].includes(s));
+                if (sensors.length === 0) {
+                    correlationInfo.innerHTML = `<p class="text-yellow-600">No X, Y, or T sensor data found for correlation.</p>`;
+                    return;
+                }
+                
+                const rainfallDates = window.rainfallData.dates;
+                
+                // Calculate correlation for each sensor
+                let correlationHTML = `<h3 class="text-lg font-semibold mb-2">Rainfall Correlation Results</h3>`;
+                let hasSufficientData = false;
+                
+                for (const sensorName of sensors) {
+                    if (!uploadedData.plot_data[sensorName]) continue;
+                    
+                    const sensorValues = uploadedData.plot_data[sensorName].values;
+                    const sensorDates = uploadedData.plot_data[sensorName].time.map(t => t.split('T')[0]);
+                    
+                    console.log(`Calculating correlation between ${sensorName} and rainfall`);
+                    console.log(`Sensor dates: ${sensorDates.length}, Rainfall dates: ${rainfallDates.length}`);
+                    
+                    // Match dates between sensor and rainfall data
+                    const matchedData = {
+                        sensor: [],
+                        rainfall: []
+                    };
+                    
+                    // Match dates that are the same in both datasets
+                    for (let i = 0; i < sensorDates.length; i++) {
+                        const date = sensorDates[i];
+                        const rainfallIdx = rainfallDates.indexOf(date);
+                        
+                        if (rainfallIdx !== -1) {
+                            const sensorVal = Number(sensorValues[i]);
+                            if (!isNaN(sensorVal)) {
+                                matchedData.sensor.push(sensorVal);
+                                matchedData.rainfall.push(window.rainfallData.values[rainfallIdx]);
+                            }
+                        }
+                    }
+                    
+                    if (matchedData.sensor.length < 5) {
+                        correlationHTML += `<p class="text-yellow-600 mb-2">Not enough matching dates for ${sensorName} correlation (found ${matchedData.sensor.length}).</p>`;
+                        continue;
+                    }
+                    
+                    hasSufficientData = true;
+                    
+                    // Calculate Pearson correlation
+                    let sumSensor = 0, sumRain = 0, sumSensorSquared = 0, sumRainSquared = 0, sumProd = 0;
+                    const n = matchedData.sensor.length;
+                    
+                    for (let i = 0; i < n; i++) {
+                        sumSensor += matchedData.sensor[i];
+                        sumRain += matchedData.rainfall[i];
+                        sumSensorSquared += matchedData.sensor[i] * matchedData.sensor[i];
+                        sumRainSquared += matchedData.rainfall[i] * matchedData.rainfall[i];
+                        sumProd += matchedData.sensor[i] * matchedData.rainfall[i];
+                    }
+                    
+                    const numerator = n * sumProd - sumSensor * sumRain;
+                    const denominator = Math.sqrt((n * sumSensorSquared - sumSensor * sumSensor) * (n * sumRainSquared - sumRain * sumRain));
+                    
+                    const correlation = denominator !== 0 ? numerator / denominator : 0;
+                    const correlationStrength = Math.abs(correlation);
+                    let correlationClass = 'text-gray-600';
+                    let correlationText = 'No correlation';
+                    
+                    if (correlationStrength >= 0.7) {
+                        correlationClass = 'text-red-600 font-bold';
+                        correlationText = 'Strong correlation';
+                    } else if (correlationStrength >= 0.5) {
+                        correlationClass = 'text-orange-500 font-semibold';
+                        correlationText = 'Moderate correlation';
+                    } else if (correlationStrength >= 0.3) {
+                        correlationClass = 'text-yellow-600';
+                        correlationText = 'Weak correlation';
+                    }
+                    
+                    correlationHTML += `
+                        <div class="mb-3">
+                            <p><strong>${sensorName}:</strong> Correlation coefficient = <span class="${correlationClass}">${correlation.toFixed(4)}</span></p>
+                            <p>Interpretation: <span class="${correlationClass}">${correlationText}</span> (${correlation < 0 ? 'negative' : 'positive'})</p>
+                            <p>Based on ${n} matching data points</p>
+                        </div>
+                    `;
+                    
+                    // Create a scatter plot for this sensor
+                    const correlationPlotId = `correlation-plot-${sensorName}`;
+                    let correlationPlotElement = document.getElementById(correlationPlotId);
+                    
+                    if (!correlationPlotElement) {
+                        correlationPlotElement = document.createElement('div');
+                        correlationPlotElement.id = correlationPlotId;
+                        correlationPlotElement.className = 'mb-4 h-64';
+                        correlationInfo.appendChild(correlationPlotElement);
+                    }
+                    
+                    const trace = {
+                        x: matchedData.rainfall,
+                        y: matchedData.sensor,
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: sensorName,
+                        marker: {
+                            size: 10,
+                            color: sensorName === 'X' ? 'rgb(0, 0, 255)' : 
+                                   sensorName === 'Y' ? 'rgb(255, 0, 0)' : 'rgb(0, 128, 0)',
+                            opacity: 0.7
+                        }
+                    };
+                    
+                    const layout = {
+                        title: `${sensorName} vs Rainfall Correlation`,
+                        xaxis: {
+                            title: 'Rainfall (mm)'
+                        },
+                        yaxis: {
+                            title: sensorName
+                        },
+                        margin: { t: 40, r: 40, b: 60, l: 60 }
+                    };
+                    
+                    Plotly.newPlot(correlationPlotElement, [trace], layout);
+                }
+                
+                if (!hasSufficientData) {
+                    correlationHTML += `<p class="text-red-600">No sensors had sufficient matching data points with rainfall for reliable correlation.</p>`;
+                }
+                
+                // Set the correlation info HTML
+                correlationInfo.innerHTML = correlationHTML;
+            }
+            
+            // Update UI based on file selection
+            function updateUI() {
+                const hasFile = window.uploadedData !== null && window.uploadedData.plot_data !== null;
+                if (fileInput && postcodeInput && fetchRainfallBtn) {
+                    // Update UI elements based on whether a file is uploaded
+                    postcodeInput.disabled = !hasFile;
+                    fetchRainfallBtn.disabled = !hasFile;
+                    
+                    // Clear rainfall data if no file is uploaded
+                    if (!hasFile) {
+                        window.rainfallData = null;
+                        if (rainfallStatus) rainfallStatus.innerHTML = '';
+                        // Reset the graph to remove rainfall data
+                        if (window.uploadedData && window.uploadedData.plot_data) {
+                            updateGraphWithRainfall();
+                        }
+                    } else {
+                        // Enable the postcode input and fetch button
+                        postcodeInput.disabled = false;
+                        fetchRainfallBtn.disabled = false;
+                        if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-gray-600">Enter a UK postcode to fetch rainfall data</span>';
+                    }
+                }
+            }
+        }
+
+        // Test server connection
+        function testServer() {
+            try {
+                axios.get('/test').then(response => {
+                    console.log('Server is working! Response:', response.data);
+                }).catch(error => {
+                    console.error('Server connection error:', error);
+                });
+            } catch (error) {
+                console.error('Error testing server:', error);
+            }
+        }
+    </script>
+</body>
+</html> 
