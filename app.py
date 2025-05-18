@@ -296,11 +296,22 @@ async def get_rainfall(lat: float, lon: float, start_date: str, end_date: str):
                 daily_data = data.get('daily', {})
                 if not daily_data:
                     return {"error": "No daily data found in response"}
+                
+                # Extract dates and rainfall values
+                dates = daily_data.get('time', [])
+                rainfall = daily_data.get('precipitation_sum', [])
+                
+                # Ensure we have valid data
+                if not dates or not rainfall or len(dates) != len(rainfall):
+                    return {"error": "Invalid rainfall data format"}
+                
+                # Convert rainfall values to numbers and handle any null values
+                rainfall = [float(val) if val is not None else 0.0 for val in rainfall]
+                
+                # Return in the format expected by the frontend
                 return {
-                    "daily": {
-                        "time": daily_data.get('time', []),
-                        "precipitation_sum": daily_data.get('precipitation_sum', [])
-                    }
+                    "dates": dates,
+                    "rainfall": rainfall
                 }
     except Exception as e:
         logger.error(f"Error fetching rainfall data: {str(e)}")

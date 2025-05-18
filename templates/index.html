@@ -915,7 +915,7 @@
             // Function to update graph with rainfall data
             function updateGraphWithRainfall() {
                 const basicGraphContainer = document.getElementById('basic-graph-container');
-                if (!basicGraphContainer || !uploadedData || !uploadedData.plot_data || !window.rainfallData) {
+                if (!basicGraphContainer || !window.uploadedData || !window.uploadedData.plot_data || !window.rainfallData) {
                     console.error("Missing elements for rainfall graph update");
                     return;
                 }
@@ -939,10 +939,10 @@
                 
                 // Create temperature trace if available
                 let temperatureTrace = null;
-                if (uploadedData.plot_data['T']) {
+                if (window.uploadedData.plot_data['T']) {
                     temperatureTrace = {
-                        x: uploadedData.plot_data['T'].time,
-                        y: uploadedData.plot_data['T'].values,
+                        x: window.uploadedData.plot_data['T'].time,
+                        y: window.uploadedData.plot_data['T'].values,
                         type: 'scatter',
                         mode: 'lines+markers',
                         name: 'Temperature',
