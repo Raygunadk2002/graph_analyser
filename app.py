@@ -388,46 +388,87 @@ async def timeseries_analysis(series: TimeSeriesData):
         matrix_profile = stumpy.stump(normalized_data, m=window_size)
         
         # Find motifs (repeating patterns)
-        motif_indices = stumpy.motifs(normalized_data, matrix_profile, k=3)
-        num_motifs = len(motif_indices) if motif_indices is not None else 0
+        try:
+            motif_indices = stumpy.motifs(normalized_data, matrix_profile, num_motifs=3)
+            num_motifs = len(motif_indices) if motif_indices is not None else 0
+        except Exception as e:
+            logger.warning(f"Error finding motifs: {str(e)}")
+            num_motifs = 0
         
         # Find anomalies
-        anomaly_indices = stumpy.anomalies(normalized_data, matrix_profile)
-        num_anomalies = len(anomaly_indices) if anomaly_indices is not None else 0
-        
-        # Classify the pattern type
-        pattern_type = classify_pattern(normalized_data)
+        try:
+            anomaly_indices = stumpy.anomalies(normalized_data, matrix_profile)
+            num_anomalies = len(anomaly_indices) if anomaly_indices is not None else 0
+        except Exception as e:
+            logger.warning(f"Error finding anomalies: {str(e)}")
+            num_anomalies = 0
         
         # Calculate seasonal decomposition
-        seasonal = seasonal_decompose(data_array, period=30)
-        
-        # Determine if the pattern is seasonal
-        is_seasonal = np.std(seasonal.seasonal) > 0.1 * np.std(data_array)
-        
-        # Calculate trend
-        trend = np.polyfit(range(len(data_array)), data_array, 1)[0]
-        is_trending = abs(trend) > 0.1 * np.std(data_array)
-        
-        # Determine the overall pattern
-        if is_seasonal and is_trending:
-            pattern = "Seasonal with Trend"
-        elif is_seasonal:
-            pattern = "Seasonal"
-        elif is_trending:
-            pattern = "Trending"
-        else:
-            pattern = "Stable"
+        try:
+            # Create a pandas Series with a dummy index
+            series = pd.Series(data_array)
+            
+            # Calculate moving averages for trend
+            trend = series.rolling(window=30, center=True).mean()
+            
+            # Detrend the data
+            detrended = series - trend
+            
+            # Calculate seasonal component
+            seasonal = detrended.rolling(window=30, center=True).mean()
+            
+            # Calculate residual
+            residual = detrended - seasonal
+            
+            # Calculate seasonal strength
+            seasonal_strength = np.std(seasonal) / np.std(data_array) if np.std(data_array) > 0 else 0
+            
+            # Determine if the pattern is seasonal
+            is_seasonal = seasonal_strength > 0.3
+            
+            # Calculate trend
+            x = np.arange(len(data_array))
+            slope, intercept = np.polyfit(x, data_array, 1)
+            trend_line = slope * x + intercept
+            
+            # Calculate R-squared
+            y_mean = np.mean(data_array)
+            ss_tot = np.sum((data_array - y_mean) ** 2)
+            ss_res = np.sum((data_array - trend_line) ** 2)
+            r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0.0
+            
+            # Determine if there's a significant trend
+            is_trending = abs(slope) > 0.1 * np.std(data_array) and r_squared > 0.3
+            
+            # Determine the overall pattern
+            if is_seasonal and is_trending:
+                pattern = "Seasonal with Trend"
+            elif is_seasonal:
+                pattern = "Seasonal"
+            elif is_trending:
+                pattern = "Trending"
+            else:
+                pattern = "Stable"
+                
+        except Exception as e:
+            logger.error(f"Error in seasonal decomposition: {str(e)}")
+            pattern = "Unknown"
+            seasonal_strength = 0.0
+            slope = 0.0
+            r_squared = 0.0
+            is_trending = False
+            is_seasonal = False
         
         return {
             "patterns": pattern,
             "motifs": f"Found {num_motifs} repeating patterns",
             "anomalies": f"Detected {num_anomalies} anomalies",
-            "shape_classification": pattern_type,
             "seasonal_analysis": {
                 "is_seasonal": bool(is_seasonal),
-                "seasonal_strength": float(np.std(seasonal.seasonal) / np.std(data_array)),
-                "trend": float(trend),
-                "is_trending": bool(is_trending)
+                "seasonal_strength": float(seasonal_strength),
+                "trend": float(slope),
+                "is_trending": bool(is_trending),
+                "r_squared": float(r_squared)
             }
         }
     except Exception as e:
