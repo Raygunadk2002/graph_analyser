@@ -70,7 +70,7 @@ def analyze_movement(series, dates):
     y_mean = np.mean(series)
     ss_tot = np.sum((series - y_mean) ** 2)
     ss_res = np.sum((series - trend_line) ** 2)
-    r_squared = 1 - (ss_res / ss_tot)
+    r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0.0
     
     # Calculate seasonal strength
     seasonal_strength = amplitude / (np.std(series) if np.std(series) > 0 else 1)
