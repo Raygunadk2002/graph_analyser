@@ -19,10 +19,23 @@ import io
 from typing import Optional, List
 import aiohttp
 from pydantic import BaseModel
+from data_loader import data_loader
+from database import db
+import traceback
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+# Try to import matplotlib, but don't fail if it's not available
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # Use non-interactive backend
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    logger.warning("Matplotlib not available. Some visualization features may be limited.")
+    MATPLOTLIB_AVAILABLE = False
 
 # Create necessary directories
 UPLOAD_DIR = Path("uploads")
@@ -51,57 +64,73 @@ app.add_middleware(
 
 def analyze_movement(series, dates):
     """Analyze movement patterns in the data"""
-    # Convert to monthly averages
-    monthly = pd.Series(series.values, index=dates).resample('M').mean()
-    
-    # Calculate summer (Jun-Aug) and winter (Dec-Feb) averages
-    summer = monthly[monthly.index.month.isin([6,7,8])].mean()
-    winter = monthly[monthly.index.month.isin([12,1,2])].mean()
-    
-    # Calculate the seasonal amplitude
-    amplitude = abs(summer - winter)
-    
-    # Calculate trend using linear regression
-    x = np.arange(len(series))
-    slope, intercept = np.polyfit(x, series, 1)
-    trend_line = slope * x + intercept
-    
-    # Calculate R-squared to determine how well the trend fits
-    y_mean = np.mean(series)
-    ss_tot = np.sum((series - y_mean) ** 2)
-    ss_res = np.sum((series - trend_line) ** 2)
-    r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0.0
-    
-    # Calculate seasonal strength
-    seasonal_strength = amplitude / (np.std(series) if np.std(series) > 0 else 1)
-    
-    # Determine if the pattern is consistent (summer opening, winter closing)
-    is_consistent = (summer > winter) if series.mean() > 0 else (summer < winter)
-    
-    # Determine if the movement is progressive
-    is_progressive = abs(slope) > 0.1 and r_squared > 0.3
-    
-    # Determine if the movement is primarily seasonal
-    is_seasonal = seasonal_strength > 0.3 and amplitude > 0.1
-    
-    # Convert all values to float and handle NaN/Inf
-    def safe_float(value):
-        if pd.isna(value) or np.isinf(value):
-            return 0.0
-        return float(value)
-    
-    return {
-        'has_seasonal': bool(is_seasonal),
-        'amplitude': safe_float(amplitude),
-        'is_consistent': bool(is_consistent),
-        'summer_avg': safe_float(summer),
-        'winter_avg': safe_float(winter),
-        'is_progressive': bool(is_progressive),
-        'slope': safe_float(slope),
-        'r_squared': safe_float(r_squared),
-        'seasonal_strength': safe_float(seasonal_strength),
-        'movement_type': 'Progressive' if is_progressive else 'Seasonal' if is_seasonal else 'Stable'
-    }
+    try:
+        # Convert to monthly averages
+        monthly = pd.Series(series.values, index=dates).resample('M').mean()
+        
+        # Calculate summer (Jun-Aug) and winter (Dec-Feb) averages
+        summer = monthly[monthly.index.month.isin([6,7,8])].mean()
+        winter = monthly[monthly.index.month.isin([12,1,2])].mean()
+        
+        # Calculate the seasonal amplitude
+        amplitude = abs(summer - winter)
+        
+        # Calculate trend using linear regression
+        x = np.arange(len(series))
+        slope, intercept = np.polyfit(x, series, 1)
+        trend_line = slope * x + intercept
+        
+        # Calculate R-squared to determine how well the trend fits
+        y_mean = np.mean(series)
+        ss_tot = np.sum((series - y_mean) ** 2)
+        ss_res = np.sum((series - trend_line) ** 2)
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0.0
+        
+        # Calculate seasonal strength
+        seasonal_strength = amplitude / (np.std(series) if np.std(series) > 0 else 1)
+        
+        # Determine if the pattern is consistent (summer opening, winter closing)
+        is_consistent = (summer > winter) if series.mean() > 0 else (summer < winter)
+        
+        # Determine if the movement is progressive
+        is_progressive = abs(slope) > 0.1 and r_squared > 0.3
+        
+        # Determine if the movement is primarily seasonal
+        is_seasonal = seasonal_strength > 0.3 and amplitude > 0.1
+        
+        # Convert all values to float and handle NaN/Inf
+        def safe_float(value):
+            if pd.isna(value) or np.isinf(value):
+                return 0.0
+            return float(value)
+        
+        return {
+            'has_seasonal': bool(is_seasonal),
+            'amplitude': safe_float(amplitude),
+            'is_consistent': bool(is_consistent),
+            'summer_avg': safe_float(summer),
+            'winter_avg': safe_float(winter),
+            'is_progressive': bool(is_progressive),
+            'slope': safe_float(slope),
+            'r_squared': safe_float(r_squared),
+            'seasonal_strength': safe_float(seasonal_strength),
+            'movement_type': 'Progressive' if is_progressive else 'Seasonal' if is_seasonal else 'Stable'
+        }
+    except Exception as e:
+        logger.error(f"Error in analyze_movement: {str(e)}")
+        return {
+            'error': str(e),
+            'has_seasonal': False,
+            'amplitude': 0.0,
+            'is_consistent': False,
+            'summer_avg': 0.0,
+            'winter_avg': 0.0,
+            'is_progressive': False,
+            'slope': 0.0,
+            'r_squared': 0.0,
+            'seasonal_strength': 0.0,
+            'movement_type': 'Error'
+        }
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -148,120 +177,99 @@ async def upload_file(file: UploadFile = File(...)):
             with file_path.open("wb") as buffer:
                 buffer.write(content)
             logger.debug(f"File saved to: {file_path}")
+            
+            # Store file in database with absolute path
+            file_id = db.store_file(file.filename, str(file_path.resolve()))
+            logger.debug(f"File stored in database with ID: {file_id}")
+            
         except Exception as e:
             logger.error(f"Error saving file: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
         
-        # Read the file based on its extension
+        # Load and process the file
         try:
-            logger.debug(f"Attempting to read file: {file_path}")
-            if file_path.suffix.lower() == '.csv':
-                df = pd.read_csv(file_path)
-            elif file_path.suffix.lower() == '.xlsx':
-                df = pd.read_excel(file_path, engine='openpyxl')
-            elif file_path.suffix.lower() == '.xls':
-                try:
-                    df = pd.read_excel(file_path, engine='xlrd')
-                except Exception as xlrd_error:
-                    logger.warning(f"xlrd error: {str(xlrd_error)}, trying openpyxl")
-                    df = pd.read_excel(file_path, engine='openpyxl')
+            df = pd.read_csv(file_path) if file_path.suffix.lower() == '.csv' else pd.read_excel(file_path)
             
-            logger.debug(f"File read successfully: {df.shape} rows, {df.columns.tolist()}")
-            logger.debug(f"DataFrame info:\n{df.info()}")
-            logger.debug(f"First few rows:\n{df.head()}")
+            # Try to identify datetime column
+            datetime_col = None
+            logger.debug(f"Available columns: {df.columns.tolist()}")
+            logger.debug(f"Column types: {df.dtypes}")
             
-        except Exception as e:
-            logger.error(f"Error reading file: {str(e)}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
-        
-        # Basic data validation
-        if df.empty:
-            raise HTTPException(status_code=400, detail="File contains no data")
-        
-        # Try to identify datetime column
-        datetime_col = None
-        logger.debug(f"Available columns: {df.columns.tolist()}")
-        logger.debug(f"Column types: {df.dtypes}")
-        
-        # First try to find a column with 'date' or 'time' in its name
-        for col in df.columns:
-            if any(term in col.lower() for term in ['date', 'time', 'day', 'month', 'year']):
-                try:
-                    pd.to_datetime(df[col])
-                    datetime_col = col
-                    logger.debug(f"Found datetime column by name: {col}")
-                    break
-                except Exception as e:
-                    logger.debug(f"Failed to convert column {col} to datetime: {str(e)}")
-                    continue
-        
-        # If no column found by name, try all columns
-        if not datetime_col:
+            # First try to find a column with 'date' or 'time' in its name
             for col in df.columns:
-                try:
-                    # Try to convert the first non-null value to datetime
-                    sample = df[col].dropna().iloc[0]
-                    pd.to_datetime(sample)
-                    datetime_col = col
-                    logger.debug(f"Found datetime column by content: {col}")
-                    break
-                except Exception as e:
-                    logger.debug(f"Failed to convert column {col} to datetime: {str(e)}")
-                    continue
-        
-        if not datetime_col:
-            # If still no datetime column found, provide more detailed error
-            column_info = "\n".join([f"- {col}: {df[col].dtype}" for col in df.columns])
-            raise HTTPException(
-                status_code=400, 
-                detail=f"No datetime column found. Please ensure your file has a column with dates.\n\nAvailable columns:\n{column_info}"
-            )
-        
-        logger.debug(f"Datetime column identified: {datetime_col}")
-        
-        # Convert datetime with more flexible parsing
-        try:
-            df['__time__'] = pd.to_datetime(df[datetime_col], errors='coerce')
-            # Check if any dates were successfully parsed
-            if df['__time__'].isna().all():
-                raise ValueError("No valid dates could be parsed from the datetime column")
-            logger.debug(f"Successfully converted dates. Sample dates: {df['__time__'].head().tolist()}")
-        except Exception as e:
-            logger.error(f"Error converting datetime: {str(e)}", exc_info=True)
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Error converting datetime column '{datetime_col}': {str(e)}. Please ensure the dates are in a standard format (e.g., YYYY-MM-DD, DD/MM/YYYY)."
-            )
-        
-        # Get numeric columns
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        if not numeric_cols:
-            raise HTTPException(status_code=400, detail="No numeric columns found. Please ensure your file has at least one column with numeric data.")
-        
-        logger.debug(f"Numeric columns: {numeric_cols}")
-        
-        # Analyze each numeric column
-        analysis = {}
-        try:
-            for col in numeric_cols:
-                if col != '__time__':
-                    logger.debug(f"Analyzing column: {col}")
-                    analysis[col] = analyze_movement(df[col], df['__time__'])
-            logger.debug(f"Analysis completed: {analysis}")
-        except Exception as e:
-            logger.error(f"Error during analysis: {str(e)}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Error during analysis: {str(e)}")
-        
-        return {
-            "status": "success",
-            "message": "File processed successfully",
-            "data": {
-                "columns": df.columns.tolist(),
-                "numeric_columns": numeric_cols,
-                "datetime_column": datetime_col,
-                "analysis": analysis
+                if any(term in col.lower() for term in ['date', 'time', 'day', 'month', 'year']):
+                    try:
+                        pd.to_datetime(df[col])
+                        datetime_col = col
+                        logger.debug(f"Found datetime column by name: {col}")
+                        break
+                    except Exception as e:
+                        logger.debug(f"Failed to convert column {col} to datetime: {str(e)}")
+                        continue
+            
+            # If no column found by name, try all columns
+            if not datetime_col:
+                for col in df.columns:
+                    try:
+                        # Try to convert the first non-null value to datetime
+                        sample = df[col].dropna().iloc[0]
+                        pd.to_datetime(sample)
+                        datetime_col = col
+                        logger.debug(f"Found datetime column by content: {col}")
+                        break
+                    except Exception as e:
+                        logger.debug(f"Failed to convert column {col} to datetime: {str(e)}")
+                        continue
+            
+            if not datetime_col:
+                # If still no datetime column found, provide more detailed error
+                column_info = "\n".join([f"- {col}: {df[col].dtype}" for col in df.columns])
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"No datetime column found. Please ensure your file has a column with dates.\n\nAvailable columns:\n{column_info}"
+                )
+            
+            logger.debug(f"Datetime column identified: {datetime_col}")
+            
+            # Get numeric columns
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            if not numeric_cols:
+                raise HTTPException(status_code=400, detail="No numeric columns found. Please ensure your file has at least one column with numeric data.")
+            
+            logger.debug(f"Numeric columns: {numeric_cols}")
+            
+            # Set default mapping based on detected columns
+            default_mapping = {'time': datetime_col}
+            if len(numeric_cols) >= 1:
+                default_mapping['x'] = numeric_cols[0]
+            if len(numeric_cols) >= 2:
+                default_mapping['y'] = numeric_cols[1]
+            if len(numeric_cols) >= 3:
+                default_mapping['t'] = numeric_cols[2]
+            
+            # Store the mapping in database
+            analysis_id = db.store_analysis(file_id, default_mapping)
+            logger.debug(f"Default mapping stored in database with analysis ID: {analysis_id}")
+            
+            # Prepare response data
+            processed_data = {
+                'file_id': file_id,
+                'analysis_id': analysis_id,
+                'columns': df.columns.tolist(),
+                'numeric_columns': numeric_cols,
+                'datetime_column': datetime_col,
+                'mapped_columns': default_mapping
             }
-        }
+            
+            return {
+                "status": "success",
+                "message": "File processed successfully",
+                "data": processed_data
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing file: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
         
     except HTTPException as he:
         logger.error(f"HTTP Exception: {str(he)}")
@@ -477,31 +485,105 @@ async def timeseries_analysis(series: TimeSeriesData):
 
 def classify_pattern(data):
     """Classify the pattern type of the time series data."""
-    # Calculate basic statistics
-    mean = np.mean(data)
-    std = np.std(data)
-    
-    # Calculate trend
-    x = np.arange(len(data))
-    slope = np.polyfit(x, data, 1)[0]
-    
-    # Calculate seasonality
-    fft = np.fft.fft(data)
-    freqs = np.fft.fftfreq(len(data))
-    main_freq = freqs[np.argmax(np.abs(fft[1:len(fft)//2])) + 1]
-    
-    # Determine pattern type
-    if abs(slope) > 0.1 * std:
-        if slope > 0:
-            return "Upward Trend"
+    try:
+        # Calculate basic statistics
+        mean = np.mean(data)
+        std = np.std(data)
+        
+        # Calculate trend
+        x = np.arange(len(data))
+        slope = np.polyfit(x, data, 1)[0]
+        
+        # Calculate seasonality using FFT
+        fft = np.fft.fft(data)
+        freqs = np.fft.fftfreq(len(data))
+        main_freq = freqs[np.argmax(np.abs(fft[1:len(fft)//2])) + 1]
+        
+        # Determine pattern type
+        if abs(slope) > 0.1 * std:
+            if slope > 0:
+                return "Upward Trend"
+            else:
+                return "Downward Trend"
+        elif abs(main_freq) > 0.1:
+            return "Cyclic"
+        elif std > 0.5 * np.mean(np.abs(data)):
+            return "Volatile"
         else:
-            return "Downward Trend"
-    elif abs(main_freq) > 0.1:
-        return "Cyclic"
-    elif std > 0.5 * np.mean(np.abs(data)):
-        return "Volatile"
-    else:
-        return "Stable"
+            return "Stable"
+    except Exception as e:
+        logger.error(f"Error in pattern classification: {str(e)}")
+        return "Unknown"
+
+def calculate_pattern_confidence(series):
+    """Calculate confidence in the pattern classification."""
+    try:
+        # Calculate R-squared for trend
+        x = np.arange(len(series))
+        slope, intercept = np.polyfit(x, series, 1)
+        trend_line = slope * x + intercept
+        y_mean = np.mean(series)
+        ss_tot = np.sum((series - y_mean) ** 2)
+        ss_res = np.sum((series - trend_line) ** 2)
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0.0
+        
+        # Calculate seasonal strength
+        seasonal = seasonal_decompose(series.values)
+        seasonal_strength = np.std(seasonal.seasonal) / np.std(series) if np.std(series) > 0 else 0
+        
+        # Combine metrics
+        confidence = (r_squared + seasonal_strength) / 2
+        return float(min(max(confidence, 0), 1))  # Ensure between 0 and 1
+    except Exception as e:
+        logger.error(f"Error calculating pattern confidence: {str(e)}")
+        return 0.0
+
+def calculate_pattern_frequency(series):
+    """Calculate the frequency of the pattern."""
+    try:
+        # Use FFT to find dominant frequency
+        fft = np.fft.fft(series)
+        freqs = np.fft.fftfreq(len(series))
+        main_freq = freqs[np.argmax(np.abs(fft[1:len(fft)//2])) + 1]
+        
+        # Convert frequency to period
+        if abs(main_freq) > 0:
+            period = 1 / abs(main_freq)
+            
+            # Convert to human-readable format
+            if period < 2:
+                return "Daily"
+            elif period < 8:
+                return "Weekly"
+            elif period < 32:
+                return "Monthly"
+            elif period < 93:
+                return "Quarterly"
+            else:
+                return "Yearly"
+        else:
+            return "Irregular"
+    except Exception as e:
+        logger.error(f"Error calculating pattern frequency: {str(e)}")
+        return "Unknown"
+
+def calculate_pattern_duration(series):
+    """Calculate the duration of the pattern."""
+    try:
+        # Use FFT to find dominant frequency
+        fft = np.fft.fft(series)
+        freqs = np.fft.fftfreq(len(series))
+        main_freq = freqs[np.argmax(np.abs(fft[1:len(fft)//2])) + 1]
+        
+        # Convert frequency to period
+        if abs(main_freq) > 0:
+            period = 1 / abs(main_freq)
+            return f"{int(period)} days"
+        else:
+            return "Variable"
+    except Exception as e:
+        logger.error(f"Error calculating pattern duration: {str(e)}")
+        return "Unknown"
 
 def seasonal_decompose(data, period=30):
     """Perform seasonal decomposition on the time series data."""
@@ -738,82 +820,103 @@ async def debug_timeseries_analysis(series: list):
 @app.post("/analyse")
 async def analyse_file_with_mapping(
     mapping: str = Form(...),
-    file: Optional[UploadFile] = File(None)
+    file_id: int = Form(...)
 ):
-    """Analyse only the mapped columns (time/x/y/z/t, any of x/y/z/t optional) and return results for only those columns."""
+    """Analyze file with column mapping"""
     try:
-        # Parse the mapping JSON
-        mapping_dict = json.loads(mapping)
-        logger.debug(f"Received mapping: {mapping_dict}")
-        
-        # Get the filename from mapping
-        filename = mapping_dict.get('filename')
-        if not filename:
-            raise HTTPException(status_code=400, detail="No filename provided in mapping")
+        # Parse the mapping
+        try:
+            logger.debug(f"Received mapping string: {mapping}")
+            mapping_dict = json.loads(mapping)
+            logger.debug(f"Parsed mapping: {mapping_dict}")
             
-        # Read the file
-        file_path = UPLOAD_DIR / filename
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail=f"File {filename} not found")
+            # Validate mapping structure
+            if not isinstance(mapping_dict, dict):
+                raise ValueError("Mapping must be a dictionary")
             
-        # Read the file based on extension
-        if file_path.suffix.lower() == '.csv':
-            df = pd.read_csv(file_path)
-        else:
-            df = pd.read_excel(file_path)
-            
-        logger.debug(f"Read file with columns: {df.columns.tolist()}")
+            required_keys = ['time']
+            missing_keys = [key for key in required_keys if key not in mapping_dict]
+            if missing_keys:
+                raise ValueError(f"Missing required mapping keys: {', '.join(missing_keys)}")
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in mapping: {str(e)}")
+            raise HTTPException(status_code=422, detail=f"Invalid mapping format: {str(e)}")
+        except ValueError as e:
+            logger.error(f"Invalid mapping structure: {str(e)}")
+            raise HTTPException(status_code=422, detail=str(e))
         
-        # Get the mapped columns
-        time_col = mapping_dict.get('time')
-        x_col = mapping_dict.get('x')
-        y_col = mapping_dict.get('y')
-        z_col = mapping_dict.get('z')
-        t_col = mapping_dict.get('t')
+        # Get file data
+        try:
+            logger.debug(f"Retrieving file data for file_id: {file_id}")
+            df = db.get_file_data(file_id)
+            if df is None:
+                raise HTTPException(status_code=404, detail="File not found or could not be read")
+            logger.debug(f"Retrieved DataFrame with shape: {df.shape}")
+        except Exception as e:
+            logger.error(f"Error retrieving file data: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error retrieving file data: {str(e)}")
         
-        # Create mapped columns dictionary
-        mapped_cols = {}
-        if x_col and x_col in df.columns:
-            mapped_cols['X'] = x_col
-        if y_col and y_col in df.columns:
-            mapped_cols['Y'] = y_col
-        if z_col and z_col in df.columns:
-            mapped_cols['Z'] = z_col
-        if t_col and t_col in df.columns:
-            mapped_cols['T'] = t_col
-            
-        logger.debug(f"Mapped columns: {mapped_cols}")
+        # Store the new analysis configuration
+        try:
+            analysis_id = db.store_analysis(file_id, mapping_dict)
+            logger.debug(f"Stored new analysis configuration with ID: {analysis_id}")
+        except Exception as e:
+            logger.error(f"Error storing analysis configuration: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error storing analysis configuration: {str(e)}")
         
-        # Convert time column to datetime
-        df['__time__'] = pd.to_datetime(df[time_col])
-        logger.debug(f"Converting time column '{time_col}' to datetime")
-        logger.debug(f"Successfully converted time column. First few dates: {df['__time__'].head().tolist()}")
-        
-        # Prepare plot data
-        plot_data = {}
-        dates_str = df['__time__'].dt.strftime('%Y-%m-%dT%H:%M:%S').tolist()
-        
-        # Add each mapped column to plot data
-        for axis, col in mapped_cols.items():
-            logger.debug(f"Preparing plot data for axis {axis} ({col})")
-            plot_data[axis] = {
-                'time': dates_str,
-                'values': df[col].astype(float).tolist()
-            }
-            
-        logger.debug(f"Successfully prepared plot data for {len(plot_data)} axes")
+        # Convert time column to datetime and sort
+        try:
+            time_col = mapping_dict['time']
+            if time_col not in df.columns:
+                raise ValueError(f"Time column '{time_col}' not found in data")
+                
+            df['__time__'] = pd.to_datetime(df[time_col])
+            df.sort_values('__time__', inplace=True)
+            logger.debug(f"Successfully converted and sorted time column")
+        except Exception as e:
+            logger.error(f"Error converting time column: {str(e)}")
+            raise HTTPException(status_code=422, detail=f"Error converting time column: {str(e)}")
         
         # Perform analysis
         analysis = {}
-        for axis, col in mapped_cols.items():
-            logger.debug(f"Analyzing column '{col}' for axis {axis}")
-            try:
-                result = analyze_movement(df[col], df['__time__'])
-                analysis[axis] = {k: None if pd.isna(v) else v for k, v in result.items()}
-                logger.debug(f"Analysis for {axis} ({col}): {analysis[axis]}")
-            except Exception as e:
-                logger.error(f"Error analyzing {axis} ({col}): {str(e)}")
-                analysis[axis] = {"error": str(e)}
+        for axis, col in mapping_dict.items():
+            if col and col in df.columns:
+                try:
+                    logger.debug(f"Analyzing column '{col}' for axis {axis}")
+                    result = analyze_movement(df[col], df['__time__'])
+                    analysis[axis.upper()] = {k: None if pd.isna(v) else v for k, v in result.items()}
+                    logger.debug(f"Analysis for {axis} ({col}): {analysis[axis.upper()]}")
+                    
+                    # Store results in database
+                    db.store_results(analysis_id, axis.upper(), result)
+                    
+                except Exception as e:
+                    logger.error(f"Error analyzing {axis} ({col}): {str(e)}")
+                    analysis[axis.upper()] = {"error": str(e)}
+        
+        if not analysis:
+            logger.error("No valid analysis could be performed on any columns")
+            raise HTTPException(status_code=422, detail="No valid analysis could be performed on any columns")
+        
+        # Prepare plot data
+        try:
+            dates_str = df['__time__'].dt.strftime('%Y-%m-%dT%H:%M:%S').tolist()
+            plot_data = {}
+            
+            for axis, col in mapping_dict.items():
+                if col and col in df.columns:
+                    try:
+                        plot_data[axis.upper()] = {
+                            'time': dates_str,
+                            'values': df[col].astype(float).tolist()
+                        }
+                    except Exception as e:
+                        logger.error(f"Error preparing plot data for {axis}: {str(e)}")
+                        continue
+        except Exception as e:
+            logger.error(f"Error preparing plot data: {str(e)}")
+            plot_data = {}
         
         # Return the results
         logger.debug("Analysis complete, returning results")
@@ -821,16 +924,196 @@ async def analyse_file_with_mapping(
             "status": "success",
             "message": "Analysis complete",
             "data": {
-                "columns": list(mapped_cols.values()),
-                "datetime_column": time_col,
-                "analysis": analysis,
-                "plot_data": plot_data
+                "file_id": file_id,
+                "analysis_id": analysis_id,
+                "columns": df.columns.tolist(),
+                "numeric_columns": df.select_dtypes(include=[np.number]).columns.tolist(),
+                "datetime_column": mapping_dict['time'],
+                "mapped_columns": mapping_dict,
+                "plot_data": plot_data,
+                "analysis": analysis
             }
         }
         
+    except HTTPException as he:
+        raise he
     except Exception as e:
         logger.error(f"Error in analysis: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/seasonal")
+async def seasonal_page(request: Request):
+    """Serve the seasonal analysis page"""
+    if data_loader.get_dataframe() is None:
+        raise HTTPException(status_code=400, detail="No file data available. Please upload a file first.")
+    return templates.TemplateResponse("seasonal_analysis.html", {"request": request})
+
+@app.get("/advanced")
+async def advanced_page(request: Request):
+    """Serve the advanced analysis page"""
+    if data_loader.get_dataframe() is None:
+        raise HTTPException(status_code=400, detail="No file data available. Please upload a file first.")
+    return templates.TemplateResponse("advanced_analysis.html", {"request": request})
+
+@app.post("/analyse/seasonal")
+async def seasonal_analysis(data: dict):
+    """Perform seasonal analysis on the stored data"""
+    try:
+        if data_loader.get_dataframe() is None:
+            raise HTTPException(status_code=400, detail="No file data available. Please upload a file first.")
+        
+        df = data_loader.get_dataframe()
+        mapping = data_loader.get_mapping()
+        
+        if mapping is None:
+            raise HTTPException(status_code=400, detail="No column mapping available. Please perform basic analysis first.")
+        
+        # Get the mapped columns
+        time_col = mapping.get('time')
+        x_col = mapping.get('x')
+        y_col = mapping.get('y')
+        t_col = mapping.get('t')
+        
+        if not time_col:
+            raise HTTPException(status_code=400, detail="No time column mapped. Please perform basic analysis first.")
+        
+        if not any([x_col, y_col, t_col]):
+            raise HTTPException(status_code=400, detail="No data columns mapped. Please perform basic analysis first.")
+        
+        # Convert time column to datetime if it exists
+        try:
+            df[time_col] = pd.to_datetime(df[time_col])
+            logger.debug(f"Successfully converted time column '{time_col}' to datetime")
+        except Exception as e:
+            logger.error(f"Error converting time column to datetime: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error converting time column to datetime: {str(e)}")
+        
+        # Perform seasonal analysis for each mapped column
+        results = {}
+        for col_name, col in [('X', x_col), ('Y', y_col), ('T', t_col)]:
+            if col:
+                try:
+                    if col not in df.columns:
+                        logger.error(f"Column {col} not found in DataFrame")
+                        results[col_name] = {"error": f"Column {col} not found in data"}
+                        continue
+                        
+                    series = df[col]
+                    dates = df[time_col]
+                    
+                    # Check for valid data
+                    if series.isna().all():
+                        logger.error(f"Column {col} contains only NaN values")
+                        results[col_name] = {"error": f"Column {col} contains only NaN values"}
+                        continue
+                        
+                    # Perform analysis
+                    result = analyze_movement(series, dates)
+                    results[col_name] = result
+                    logger.debug(f"Analysis for {col_name} ({col}): {result}")
+                except Exception as e:
+                    logger.error(f"Error analyzing {col_name} ({col}): {str(e)}")
+                    results[col_name] = {"error": str(e)}
+        
+        if not results:
+            raise HTTPException(status_code=400, detail="No valid data columns found for analysis.")
+        
+        return results
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error in seasonal analysis: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error in seasonal analysis: {str(e)}")
+
+@app.post("/analyse/advanced")
+async def advanced_analysis(data: dict):
+    """Perform advanced analysis on the stored data"""
+    try:
+        if data_loader.get_dataframe() is None:
+            raise HTTPException(status_code=400, detail="No file data available. Please upload a file first.")
+        
+        df = data_loader.get_dataframe()
+        mapping = data_loader.get_mapping()
+        
+        if mapping is None:
+            raise HTTPException(status_code=400, detail="No column mapping available. Please perform basic analysis first.")
+        
+        # Get the mapped columns
+        time_col = mapping.get('time')
+        x_col = mapping.get('x')
+        y_col = mapping.get('y')
+        t_col = mapping.get('t')
+        
+        if not time_col:
+            raise HTTPException(status_code=400, detail="No time column mapped. Please perform basic analysis first.")
+        
+        if not any([x_col, y_col, t_col]):
+            raise HTTPException(status_code=400, detail="No data columns mapped. Please perform basic analysis first.")
+        
+        # Convert time column to datetime if it exists
+        try:
+            df[time_col] = pd.to_datetime(df[time_col])
+            logger.debug(f"Successfully converted time column '{time_col}' to datetime")
+        except Exception as e:
+            logger.error(f"Error converting time column to datetime: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error converting time column to datetime: {str(e)}")
+        
+        # Perform advanced analysis
+        results = {}
+        for col_name, col in [('X', x_col), ('Y', y_col), ('T', t_col)]:
+            if col:
+                try:
+                    if col not in df.columns:
+                        logger.error(f"Column {col} not found in DataFrame")
+                        results[col_name] = {"error": f"Column {col} not found in data"}
+                        continue
+                        
+                    series = df[col]
+                    
+                    # Check for valid data
+                    if series.isna().all():
+                        logger.error(f"Column {col} contains only NaN values")
+                        results[col_name] = {"error": f"Column {col} contains only NaN values"}
+                        continue
+                    
+                    # Perform analysis
+                    pattern_type = classify_pattern(series.values)
+                    pattern_confidence = calculate_pattern_confidence(series)
+                    pattern_frequency = calculate_pattern_frequency(series)
+                    pattern_duration = calculate_pattern_duration(series)
+                    
+                    results[col_name] = {
+                        "pattern_type": pattern_type,
+                        "pattern_confidence": pattern_confidence,
+                        "pattern_frequency": pattern_frequency,
+                        "pattern_duration": pattern_duration
+                    }
+                    logger.debug(f"Advanced analysis for {col_name} ({col}): {results[col_name]}")
+                except Exception as e:
+                    logger.error(f"Error in advanced analysis for {col_name} ({col}): {str(e)}")
+                    results[col_name] = {"error": str(e)}
+        
+        if not results:
+            raise HTTPException(status_code=400, detail="No valid data columns found for analysis.")
+        
+        return results
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error in advanced analysis: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error in advanced analysis: {str(e)}")
+
+def detect_pattern_type(df):
+    # Implement pattern detection logic
+    # This is a placeholder implementation
+    return "Cyclic"
+
+def calculate_correlation_matrix(df):
+    # Implement correlation matrix calculation
+    # This is a placeholder implementation
+    return [[1.0, 0.5], [0.5, 1.0]]
 
 if __name__ == "__main__":
     import uvicorn

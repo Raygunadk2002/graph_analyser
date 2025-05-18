@@ -9,8 +9,24 @@
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-lg">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <a href="/" class="text-xl font-bold text-gray-800">Structural Movement Analysis</a>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="/" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Basic Analysis</a>
+                    <a href="/seasonal" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Seasonal Analysis</a>
+                    <a href="/advanced" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Advanced Analysis</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-8">Structural Movement Analysis</h1>
+        <h1 class="text-3xl font-bold mb-8">Basic Analysis</h1>
         
         <!-- File Upload Section -->
         <div class="mb-8">
@@ -44,22 +60,10 @@
             <div id="rainfall-status" class="mt-2 text-gray-600"></div>
         </div>
         
-        <!-- Column Mapping (future UI) -->
+        <!-- Column Mapping -->
         <div id="column-mapping" class="mb-6 hidden">
             <label class="block text-gray-700 font-medium mb-2">Map columns:</label>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="column-mapping-fields"></div>
-        </div>
-        
-        <!-- Analysis Tabs -->
-        <div class="mb-8">
-            <!-- Tab Navigation -->
-            <div class="mb-6 border-b border-gray-200">
-                <nav class="flex space-x-8" id="tab-nav">
-                    <button class="tab-btn text-lg py-2 px-4 border-b-2 font-medium focus:outline-none" data-tab="basic" id="tab-basic">Basic Graph</button>
-                    <button class="tab-btn text-lg py-2 px-4 border-b-2 font-medium focus:outline-none" data-tab="seasonal" id="tab-seasonal">Seasonal Analysis</button>
-                    <button class="tab-btn text-lg py-2 px-4 border-b-2 font-medium focus:outline-none" data-tab="advanced" id="tab-advanced">Advanced Analysis</button>
-                </nav>
-            </div>
         </div>
         
         <!-- Basic Graph Section -->
@@ -69,69 +73,6 @@
             <div id="correlation-section" class="bg-gray-50 p-4 rounded-lg">
                 <h3 class="font-semibold text-lg mb-2">Rainfall-Movement Correlation</h3>
                 <div id="correlation-info" class="text-gray-700"></div>
-            </div>
-        </div>
-
-        <!-- Seasonal Analysis Section -->
-        <div id="seasonal-analysis-section" class="analysis-section" style="display: none;">
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Seasonal Decomposition</h5>
-                            <div id="seasonal-plot"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Movement Analysis</h5>
-                            <div id="movement-metrics">
-                                <div class="metric">
-                                    <span class="metric-label">Movement Type:</span>
-                                    <span id="movement-type" class="metric-value"></span>
-                                </div>
-                                <div class="metric">
-                                    <span class="metric-label">Seasonal Strength:</span>
-                                    <span id="seasonal-strength" class="metric-value"></span>
-                                </div>
-                                <div class="metric">
-                                    <span class="metric-label">Trend Slope:</span>
-                                    <span id="trend-slope" class="metric-value"></span>
-                                </div>
-                                <div class="metric">
-                                    <span class="metric-label">Trend Confidence (R²):</span>
-                                    <span id="trend-confidence" class="metric-value"></span>
-                                </div>
-                                <div class="metric">
-                                    <span class="metric-label">Summer Average:</span>
-                                    <span id="summer-avg" class="metric-value"></span>
-                                </div>
-                                <div class="metric">
-                                    <span class="metric-label">Winter Average:</span>
-                                    <span id="winter-avg" class="metric-value"></span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Advanced Analysis Section -->
-        <div id="advanced-analysis-section" class="mb-6 hidden">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Advanced Analysis</h2>
-            <div id="advanced-graph-container" class="w-full h-96 mb-8"></div>
-            <div id="advanced-metrics" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="font-semibold text-lg mb-2">Pattern Analysis</h3>
-                    <div id="pattern-analysis-info" class="text-gray-700"></div>
-                </div>
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="font-semibold text-lg mb-2">Anomaly Detection</h3>
-                    <div id="anomaly-info" class="text-gray-700"></div>
-                </div>
             </div>
         </div>
 
@@ -167,9 +108,6 @@
             try {
                 console.log('Initializing application...');
                 
-                // Initialize tab switching
-                initializeTabs();
-                
                 // Initialize file upload
                 initializeFileUpload();
                 
@@ -181,62 +119,6 @@
                 console.error('Error initializing application:', error);
                 alert('There was an error loading the application. Please check the console for details.');
             }
-        }
-
-        // Tab switching logic
-        function initializeTabs() {
-            const tabNav = document.getElementById('tab-nav');
-            const basicGraphSection = document.getElementById('basic-graph-section');
-            const resultsSection = document.getElementById('results');
-
-            if (!tabNav) {
-                console.error('Tab navigation element not found');
-                return;
-            }
-
-            function switchTab(tabName) {
-                // Hide all sections
-                document.getElementById('basic-graph-section').classList.add('hidden');
-                document.getElementById('seasonal-analysis-section').classList.add('hidden');
-                document.getElementById('advanced-analysis-section').classList.add('hidden');
-                
-                // Remove active class from all tabs
-                document.querySelectorAll('.tab-btn').forEach(btn => {
-                    btn.classList.remove('border-blue-500', 'text-blue-600');
-                    btn.classList.add('border-transparent', 'text-gray-500');
-                });
-                
-                // Show selected section and activate tab
-                const selectedTab = document.getElementById(`tab-${tabName}`);
-                selectedTab.classList.remove('border-transparent', 'text-gray-500');
-                selectedTab.classList.add('border-blue-500', 'text-blue-600');
-                
-                switch(tabName) {
-                    case 'basic':
-                        document.getElementById('basic-graph-section').classList.remove('hidden');
-                        break;
-                    case 'seasonal':
-                        document.getElementById('seasonal-analysis-section').classList.remove('hidden');
-                        if (window.uploadedData) {
-                            runSeasonalAnalysis();
-                        }
-                        break;
-                    case 'advanced':
-                        document.getElementById('advanced-analysis-section').classList.remove('hidden');
-                        if (window.uploadedData) {
-                            runAdvancedAnalysis();
-                        }
-                        break;
-                }
-            }
-
-            // Add event listeners to tab buttons
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const tabName = e.target.dataset.tab;
-                    switchTab(tabName);
-                });
-            });
         }
         
         // Initialize file upload handlers
@@ -507,7 +389,7 @@
                 const postcodeInput = document.getElementById('postcode-input');
                 const fetchRainfallBtn = document.getElementById('fetch-rainfall');
                 
-                if (!window.uploadedData || !window.uploadedData.filename) {
+                if (!window.uploadedData || !window.uploadedData.file_id) {
                     if (uploadStatus) {
                         uploadStatus.textContent = 'Please upload a file first.';
                         uploadStatus.className = 'text-center mt-2 text-red-600';
@@ -525,20 +407,16 @@
                     if (postcodeInput) postcodeInput.disabled = true;
                     if (fetchRainfallBtn) fetchRainfallBtn.disabled = true;
                     
-                    // The server is expecting a multipart/form-data with both a file and mapping
+                    // Create form data
                     const formData = new FormData();
                     
-                    // Add the filename to the mapping so the backend knows which file to use
-                    const mappingWithFilename = {
-                        ...window.columnMapping,
-                        filename: window.uploadedData.filename
-                    };
+                    // Add the mapping and file_id
+                    formData.append('mapping', JSON.stringify(window.columnMapping));
+                    formData.append('file_id', window.uploadedData.file_id);
                     
-                    // Log the mapping for debugging
-                    console.log('Current column mapping:', window.columnMapping);
-                    console.log('Sending mapping with filename:', mappingWithFilename);
-                    
-                    formData.append('mapping', JSON.stringify(mappingWithFilename));
+                    // Log the data being sent
+                    console.log('Sending mapping:', window.columnMapping);
+                    console.log('File ID:', window.uploadedData.file_id);
                     
                     const response = await axios.post('/analyse', formData);
                     
@@ -576,23 +454,12 @@
                     }
                 } catch (error) {
                     console.error('Analysis error:', error);
-                    let errorMessage;
-                    
-                    if (error.response) {
-                        errorMessage = error.response.data.detail || error.response.data.message || error.message;
-                        console.error('Error response:', error.response.data);
-                    } else if (error.request) {
-                        errorMessage = 'No response from server. Check your connection.';
-                    } else {
-                        errorMessage = error.message;
-                    }
-                    
                     if (uploadStatus) {
-                        uploadStatus.textContent = 'Error: ' + errorMessage;
+                        uploadStatus.textContent = `Error: ${error.message}`;
                         uploadStatus.className = 'text-center mt-2 text-red-600';
                     }
                     
-                    // Re-enable inputs even if there was an error
+                    // Enable inputs on error
                     if (postcodeInput) postcodeInput.disabled = false;
                     if (fetchRainfallBtn) fetchRainfallBtn.disabled = false;
                 }

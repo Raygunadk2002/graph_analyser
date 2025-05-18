@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Analysis - Graph Analyser</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .error-message {
+            display: none;
+            color: red;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid red;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Graph Analyser</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Basic Analysis</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/seasonal">Seasonal Analysis</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/advanced">Advanced Analysis</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="error-message" id="errorMessage"></div>
+        <div class="loading" id="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Analyzing data...</p>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <h2>Advanced Analysis</h2>
+                <p>This page shows advanced analysis of your data, including pattern detection and motif analysis.</p>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-12">
+                <div id="patternPlot"></div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-12">
+                <h3>Analysis Results</h3>
+                <div id="analysisResults"></div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-12">
+                <h3>Correlation Matrix</h3>
+                <div id="correlationMatrix"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loading = document.getElementById('loading');
+            const errorMessage = document.getElementById('errorMessage');
+            const analysisResults = document.getElementById('analysisResults');
+
+            async function performAdvancedAnalysis() {
+                try {
+                    loading.style.display = 'block';
+                    errorMessage.style.display = 'none';
+
+                    const response = await fetch('/analyse/advanced', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({})
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || 'Failed to perform advanced analysis');
+                    }
+
+                    const results = await response.json();
+                    displayResults(results);
+                } catch (error) {
+                    errorMessage.textContent = error.message;
+                    errorMessage.style.display = 'block';
+                } finally {
+                    loading.style.display = 'none';
+                }
+            }
+
+            function displayResults(results) {
+                // Display pattern analysis results
+                let html = '<div class="card mb-4">';
+                html += '<div class="card-header"><h4>Pattern Analysis</h4></div>';
+                html += '<div class="card-body">';
+                html += `<p><strong>Pattern Type:</strong> ${results.pattern_type}</p>`;
+                html += `<p><strong>Pattern Confidence:</strong> ${results.pattern_confidence.toFixed(2)}</p>`;
+                html += `<p><strong>Pattern Frequency:</strong> ${results.pattern_frequency}</p>`;
+                html += `<p><strong>Pattern Duration:</strong> ${results.pattern_duration}</p>`;
+                html += '</div></div>';
+
+                // Display motif analysis results
+                html += '<div class="card mb-4">';
+                html += '<div class="card-header"><h4>Motif Analysis</h4></div>';
+                html += '<div class="card-body">';
+                if (results.motifs && results.motifs.length > 0) {
+                    html += '<ul class="list-group">';
+                    results.motifs.forEach((motif, index) => {
+                        html += `<li class="list-group-item">
+                            <strong>Motif ${index + 1}:</strong> 
+                            Duration: ${motif.duration}, 
+                            Strength: ${motif.strength.toFixed(2)}
+                        </li>`;
+                    });
+                    html += '</ul>';
+                } else {
+                    html += '<p>No significant motifs found.</p>';
+                }
+                html += '</div></div>';
+
+                analysisResults.innerHTML = html;
+
+                // Create correlation matrix heatmap
+                if (results.correlation_matrix) {
+                    const data = [{
+                        z: results.correlation_matrix,
+                        type: 'heatmap',
+                        colorscale: 'RdBu',
+                        zmin: -1,
+                        zmax: 1
+                    }];
+
+                    const layout = {
+                        title: 'Correlation Matrix',
+                        xaxis: {
+                            title: 'Variables',
+                            tickangle: -45
+                        },
+                        yaxis: {
+                            title: 'Variables'
+                        }
+                    };
+
+                    Plotly.newPlot('correlationMatrix', data, layout);
+                }
+            }
+
+            // Perform analysis when page loads
+            performAdvancedAnalysis();
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 
