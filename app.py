@@ -61,21 +61,40 @@ def analyze_movement(series, dates):
     # Calculate the seasonal amplitude
     amplitude = abs(summer - winter)
     
-    # Check if the pattern is consistent (summer opening, winter closing)
+    # Calculate trend using linear regression
+    x = np.arange(len(series))
+    slope, intercept = np.polyfit(x, series, 1)
+    trend_line = slope * x + intercept
+    
+    # Calculate R-squared to determine how well the trend fits
+    y_mean = np.mean(series)
+    ss_tot = np.sum((series - y_mean) ** 2)
+    ss_res = np.sum((series - trend_line) ** 2)
+    r_squared = 1 - (ss_res / ss_tot)
+    
+    # Calculate seasonal strength
+    seasonal_strength = amplitude / (np.std(series) if np.std(series) > 0 else 1)
+    
+    # Determine if the pattern is consistent (summer opening, winter closing)
     is_consistent = (summer > winter) if series.mean() > 0 else (summer < winter)
     
-    # Calculate trend
-    slope = np.polyfit(range(len(series)), series, 1)[0]
-    is_progressive = abs(slope) > 0.1
+    # Determine if the movement is progressive
+    is_progressive = abs(slope) > 0.1 and r_squared > 0.3
+    
+    # Determine if the movement is primarily seasonal
+    is_seasonal = seasonal_strength > 0.3 and amplitude > 0.1
     
     return {
-        'has_seasonal': bool(amplitude > 0.3),
+        'has_seasonal': bool(is_seasonal),
         'amplitude': float(amplitude),
         'is_consistent': bool(is_consistent),
         'summer_avg': float(summer),
         'winter_avg': float(winter),
         'is_progressive': bool(is_progressive),
-        'slope': float(slope)
+        'slope': float(slope),
+        'r_squared': float(r_squared),
+        'seasonal_strength': float(seasonal_strength),
+        'movement_type': 'Progressive' if is_progressive else 'Seasonal' if is_seasonal else 'Stable'
     }
 
 @app.get("/", response_class=HTMLResponse)
@@ -363,7 +382,7 @@ async def timeseries_analysis(series: TimeSeriesData):
         matrix_profile = stumpy.stump(normalized_data, m=window_size)
         
         # Find motifs (repeating patterns)
-        motif_indices = stumpy.motifs(normalized_data, matrix_profile, num_motifs=3)
+        motif_indices = stumpy.motifs(normalized_data, matrix_profile, k=3)
         num_motifs = len(motif_indices) if motif_indices is not None else 0
         
         # Find anomalies

@@ -73,17 +73,48 @@
         </div>
 
         <!-- Seasonal Analysis Section -->
-        <div id="seasonal-analysis-section" class="mb-6 hidden">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Seasonal Analysis</h2>
-            <div id="seasonal-graph-container" class="w-full h-96 mb-8"></div>
-            <div id="seasonal-metrics" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="font-semibold text-lg mb-2">Seasonal Pattern</h3>
-                    <div id="seasonal-pattern-info" class="text-gray-700"></div>
+        <div id="seasonal-analysis-section" class="analysis-section" style="display: none;">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Seasonal Decomposition</h5>
+                            <div id="seasonal-plot"></div>
+                        </div>
+                    </div>
                 </div>
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="font-semibold text-lg mb-2">Seasonal Metrics</h3>
-                    <div id="seasonal-metrics-info" class="text-gray-700"></div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Movement Analysis</h5>
+                            <div id="movement-metrics">
+                                <div class="metric">
+                                    <span class="metric-label">Movement Type:</span>
+                                    <span id="movement-type" class="metric-value"></span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Seasonal Strength:</span>
+                                    <span id="seasonal-strength" class="metric-value"></span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Trend Slope:</span>
+                                    <span id="trend-slope" class="metric-value"></span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Trend Confidence (R²):</span>
+                                    <span id="trend-confidence" class="metric-value"></span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Summer Average:</span>
+                                    <span id="summer-avg" class="metric-value"></span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Winter Average:</span>
+                                    <span id="winter-avg" class="metric-value"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1095,63 +1126,42 @@
             }
         }
 
-        async function runSeasonalAnalysis() {
-            const seasonalGraphContainer = document.getElementById('seasonal-graph-container');
-            const seasonalPatternInfo = document.getElementById('seasonal-pattern-info');
-            const seasonalMetricsInfo = document.getElementById('seasonal-metrics-info');
+        function runSeasonalAnalysis(data) {
+            const analysis = data.analysis;
+            const plotData = data.plot_data;
             
-            try {
-                // Show loading state
-                seasonalGraphContainer.innerHTML = '<div class="p-4 bg-blue-50 rounded-lg"><p class="text-center text-blue-600">Running seasonal analysis...</p></div>';
-                
-                // Get the first sensor's data
-                const sensorData = window.uploadedData.plot_data[Object.keys(window.uploadedData.plot_data)[0]];
-                const analysis = window.uploadedData.analysis[Object.keys(window.uploadedData.analysis)[0]];
-                
-                // Create seasonal decomposition plot
-                const trace1 = {
-                    x: sensorData.time,
-                    y: sensorData.values,
-                    type: 'scatter',
-                    name: 'Original',
-                    line: {color: 'blue'}
-                };
-                
-                const trace2 = {
-                    x: sensorData.time,
-                    y: analysis.seasonal,
-                    type: 'scatter',
-                    name: 'Seasonal',
-                    line: {color: 'green'}
-                };
-                
-                const layout = {
-                    title: 'Seasonal Decomposition',
-                    xaxis: {title: 'Time'},
-                    yaxis: {title: 'Movement'},
-                    showlegend: true
-                };
-                
-                Plotly.newPlot(seasonalGraphContainer, [trace1, trace2], layout);
-                
-                // Update seasonal pattern info
-                seasonalPatternInfo.innerHTML = `
-                    <p><strong>Seasonal Pattern:</strong> ${analysis.has_seasonal ? 'Detected' : 'Not detected'}</p>
-                    <p><strong>Amplitude:</strong> ${analysis.amplitude.toFixed(2)}mm</p>
-                    <p><strong>Pattern:</strong> ${analysis.is_consistent ? 'Consistent' : 'Inconsistent'}</p>
-                `;
-                
-                // Update seasonal metrics
-                seasonalMetricsInfo.innerHTML = `
-                    <p><strong>Summer Average:</strong> ${analysis.summer_avg.toFixed(2)}mm</p>
-                    <p><strong>Winter Average:</strong> ${analysis.winter_avg.toFixed(2)}mm</p>
-                    <p><strong>Seasonal Range:</strong> ${(analysis.summer_avg - analysis.winter_avg).toFixed(2)}mm</p>
-                `;
-                
-            } catch (error) {
-                console.error('Seasonal analysis error:', error);
-                seasonalGraphContainer.innerHTML = `<div class="p-4 bg-red-50 rounded-lg"><p class="text-center text-red-600">Error: ${error.message}</p></div>`;
-            }
+            // Update movement metrics
+            document.getElementById('movement-type').textContent = analysis.movement_type;
+            document.getElementById('seasonal-strength').textContent = 
+                (analysis.seasonal_strength * 100).toFixed(1) + '%';
+            document.getElementById('trend-slope').textContent = 
+                analysis.slope.toFixed(4) + ' mm/month';
+            document.getElementById('trend-confidence').textContent = 
+                (analysis.r_squared * 100).toFixed(1) + '%';
+            document.getElementById('summer-avg').textContent = 
+                analysis.summer_avg.toFixed(2) + ' mm';
+            document.getElementById('winter-avg').textContent = 
+                analysis.winter_avg.toFixed(2) + ' mm';
+            
+            // Create seasonal decomposition plot
+            const dates = plotData.time;
+            const values = plotData.values;
+            
+            const trace = {
+                x: dates,
+                y: values,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Movement'
+            };
+            
+            const layout = {
+                title: 'Seasonal Movement Pattern',
+                xaxis: { title: 'Date' },
+                yaxis: { title: 'Movement (mm)' }
+            };
+            
+            Plotly.newPlot('seasonal-plot', [trace], layout);
         }
 
         async function runAdvancedAnalysis() {
