@@ -56,23 +56,51 @@
             <div class="mb-6 border-b border-gray-200">
                 <nav class="flex space-x-8" id="tab-nav">
                     <button class="tab-btn text-lg py-2 px-4 border-b-2 font-medium focus:outline-none" data-tab="basic" id="tab-basic">Basic Graph</button>
-                    <button class="tab-btn text-lg py-2 px-4 border-b-2 font-medium focus:outline-none" data-tab="advanced" id="tab-advanced">Seasonality Analysis</button>
-                    <button class="tab-btn text-lg py-2 px-4 border-b-2 font-medium focus:outline-none" data-tab="further" id="tab-further">Further Time Series Analysis</button>
+                    <button class="tab-btn text-lg py-2 px-4 border-b-2 font-medium focus:outline-none" data-tab="seasonal" id="tab-seasonal">Seasonal Analysis</button>
+                    <button class="tab-btn text-lg py-2 px-4 border-b-2 font-medium focus:outline-none" data-tab="advanced" id="tab-advanced">Advanced Analysis</button>
                 </nav>
             </div>
         </div>
         
         <!-- Basic Graph Section -->
-        <div id="basic-graph-section" class="mb-6 hidden">
+        <div id="basic-graph-section" class="mb-6">
             <h2 class="text-2xl font-semibold text-gray-800 mb-4">Sensor Data & Rainfall</h2>
-            <!-- Sensor Information -->
-            <div class="mb-4">
-                <p class="block text-gray-700 font-medium mb-2">Displaying all sensor data (X, Y, T) on the same graph.</p>
-            </div>
             <div id="basic-graph-container" class="w-full h-96 mb-8"></div>
             <div id="correlation-section" class="bg-gray-50 p-4 rounded-lg">
                 <h3 class="font-semibold text-lg mb-2">Rainfall-Movement Correlation</h3>
                 <div id="correlation-info" class="text-gray-700"></div>
+            </div>
+        </div>
+
+        <!-- Seasonal Analysis Section -->
+        <div id="seasonal-analysis-section" class="mb-6 hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Seasonal Analysis</h2>
+            <div id="seasonal-graph-container" class="w-full h-96 mb-8"></div>
+            <div id="seasonal-metrics" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="font-semibold text-lg mb-2">Seasonal Pattern</h3>
+                    <div id="seasonal-pattern-info" class="text-gray-700"></div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="font-semibold text-lg mb-2">Seasonal Metrics</h3>
+                    <div id="seasonal-metrics-info" class="text-gray-700"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Analysis Section -->
+        <div id="advanced-analysis-section" class="mb-6 hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Advanced Analysis</h2>
+            <div id="advanced-graph-container" class="w-full h-96 mb-8"></div>
+            <div id="advanced-metrics" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="font-semibold text-lg mb-2">Pattern Analysis</h3>
+                    <div id="pattern-analysis-info" class="text-gray-700"></div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="font-semibold text-lg mb-2">Anomaly Detection</h3>
+                    <div id="anomaly-info" class="text-gray-700"></div>
+                </div>
             </div>
         </div>
 
@@ -136,33 +164,38 @@
             }
 
             function switchTab(tabName) {
-                // Remove active class from all buttons
+                // Hide all sections
+                document.getElementById('basic-graph-section').classList.add('hidden');
+                document.getElementById('seasonal-analysis-section').classList.add('hidden');
+                document.getElementById('advanced-analysis-section').classList.add('hidden');
+                
+                // Remove active class from all tabs
                 document.querySelectorAll('.tab-btn').forEach(btn => {
-                    btn.classList.remove('border-blue-600', 'text-blue-600');
+                    btn.classList.remove('border-blue-500', 'text-blue-600');
+                    btn.classList.add('border-transparent', 'text-gray-500');
                 });
                 
-                // Add active class to selected button
+                // Show selected section and activate tab
                 const selectedTab = document.getElementById(`tab-${tabName}`);
-                if (selectedTab) {
-                    selectedTab.classList.add('border-blue-600', 'text-blue-600');
-                }
+                selectedTab.classList.remove('border-transparent', 'text-gray-500');
+                selectedTab.classList.add('border-blue-500', 'text-blue-600');
                 
-                // Show/hide appropriate sections
-                if (tabName === 'basic') {
-                    if (basicGraphSection) basicGraphSection.classList.remove('hidden');
-                    if (resultsSection) resultsSection.classList.add('hidden');
-                } else if (tabName === 'advanced' || tabName === 'further') {
-                    if (basicGraphSection) basicGraphSection.classList.add('hidden');
-                    if (resultsSection) resultsSection.classList.remove('hidden');
-                    
-                    // If switching to further analysis tab, perform additional analysis
-                    if (tabName === 'further' && window.uploadedData && window.uploadedData.plot_data) {
-                        const availableSensors = Object.keys(window.uploadedData.plot_data);
-                        if (availableSensors.length > 0) {
-                            const selectedColumn = availableSensors[0];
-                            runFurtherAnalysis(selectedColumn);
+                switch(tabName) {
+                    case 'basic':
+                        document.getElementById('basic-graph-section').classList.remove('hidden');
+                        break;
+                    case 'seasonal':
+                        document.getElementById('seasonal-analysis-section').classList.remove('hidden');
+                        if (window.uploadedData) {
+                            runSeasonalAnalysis();
                         }
-                    }
+                        break;
+                    case 'advanced':
+                        document.getElementById('advanced-analysis-section').classList.remove('hidden');
+                        if (window.uploadedData) {
+                            runAdvancedAnalysis();
+                        }
+                        break;
                 }
             }
 
@@ -173,123 +206,6 @@
                     switchTab(tabName);
                 });
             });
-
-            // Function to run further analysis
-            async function runFurtherAnalysis(column) {
-                const graphsContainer = document.getElementById('graphs-container');
-                if (!graphsContainer) return;
-
-                try {
-                    // Show loading indicator
-                    graphsContainer.innerHTML = '<div class="p-4 bg-blue-50 rounded-lg"><p class="text-center text-blue-600">Running advanced analysis, please wait...</p></div>';
-
-                    // Get values for the selected column
-                    const values = window.uploadedData.plot_data[column].values;
-                                            
-                                            if (!values || !Array.isArray(values) || values.length === 0) {
-                                                throw new Error("No valid data values found for this column");
-                                            }
-                                            
-                    // Clean the values array and convert to numbers
-                                            const cleanedValues = values.map(v => {
-                        if (v === null || v === undefined || v === '') {
-                                                    return null;
-                                                }
-                        const num = Number(v);
-                        return isNaN(num) ? null : num;
-                    }).filter(v => v !== null);
-                    
-                    if (cleanedValues.length < 10) {
-                        throw new Error("Not enough valid data points for analysis");
-                    }
-                    
-                    console.log('Sending data for analysis:', {
-                        column,
-                        dataPoints: cleanedValues.length,
-                        sampleValues: cleanedValues.slice(0, 5)
-                    });
-                    
-                    // Send the data in the correct format
-                    const response = await axios.post('/timeseries-analysis', {
-                        data: cleanedValues
-                    }, {
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (!response.data) {
-                        throw new Error("No response data received from server");
-                    }
-                    
-                    // Display the results
-                    const result = response.data;
-                    let html = `
-                        <div class="bg-white p-4 rounded-lg shadow mb-6">
-                            <h3 class="font-semibold text-xl mb-4">Time Series Analysis Results</h3>
-                                                <div class="mb-4">
-                                <h4 class="font-medium text-lg mb-2">Pattern Classification</h4>
-                                <p class="text-gray-700">${result.patterns}</p>
-                                                </div>
-                                            `;
-                                            
-                    if (result.motifs) {
-                        html += `
-                                                    <div class="mb-4">
-                                <h4 class="font-medium text-lg mb-2">Repeating Patterns</h4>
-                                <p class="text-gray-700">${result.motifs}</p>
-                                                    </div>
-                                                `;
-                                            }
-                                            
-                    if (result.anomalies) {
-                        html += `
-                                                    <div class="mb-4">
-                                <h4 class="font-medium text-lg mb-2">Anomalies Detected</h4>
-                                <p class="text-gray-700">${result.anomalies}</p>
-                                                    </div>
-                                                `;
-                                            }
-                                            
-                    if (result.shape_classification) {
-                        html += `
-                                                    <div class="mb-4">
-                                <h4 class="font-medium text-lg mb-2">Shape Classification</h4>
-                                <p class="text-gray-700">${result.shape_classification}</p>
-                                                    </div>
-                                                `;
-                                            }
-                                            
-                    // Add thermal analysis section if available and if this is temperature data
-                    if (result.thermal_analysis && column === 'T') {
-                        html += `
-                                                    <div class="mb-4">
-                                <h4 class="font-medium text-lg mb-2">Thermal Analysis</h4>
-                                <p class="text-gray-700">${result.thermal_analysis.analysis}</p>
-                                <ul class="list-disc list-inside mt-2">
-                                    <li>Mean Temperature: ${result.thermal_analysis.mean_temperature}°C</li>
-                                    <li>Temperature Range: ${result.thermal_analysis.temperature_range}</li>
-                                    <li>Temperature Variability: ${result.thermal_analysis.temperature_std}°C</li>
-                                                            </ul>
-                                                    </div>
-                                                `;
-                                            }
-                                            
-                    html += '</div>';
-                    graphsContainer.innerHTML = html;
-                                            
-                                        } catch (error) {
-                    console.error('Analysis error:', error);
-                    graphsContainer.innerHTML = `
-                                                <div class="bg-white p-4 rounded-lg shadow mb-6">
-                            <h3 class="font-semibold text-xl mb-4 text-red-600">Analysis Failed</h3>
-                                                    <div class="mb-4 p-4 bg-red-50 rounded-lg">
-                                <p class="text-red-600">${error.message}</p>
-                                                    </div>
-                                                </div>
-                                            `;
-                                        }
-            }
         }
         
         // Initialize file upload handlers
@@ -1176,6 +1092,120 @@
                 });
             } catch (error) {
                 console.error('Error testing server:', error);
+            }
+        }
+
+        async function runSeasonalAnalysis() {
+            const seasonalGraphContainer = document.getElementById('seasonal-graph-container');
+            const seasonalPatternInfo = document.getElementById('seasonal-pattern-info');
+            const seasonalMetricsInfo = document.getElementById('seasonal-metrics-info');
+            
+            try {
+                // Show loading state
+                seasonalGraphContainer.innerHTML = '<div class="p-4 bg-blue-50 rounded-lg"><p class="text-center text-blue-600">Running seasonal analysis...</p></div>';
+                
+                // Get the first sensor's data
+                const sensorData = window.uploadedData.plot_data[Object.keys(window.uploadedData.plot_data)[0]];
+                const analysis = window.uploadedData.analysis[Object.keys(window.uploadedData.analysis)[0]];
+                
+                // Create seasonal decomposition plot
+                const trace1 = {
+                    x: sensorData.time,
+                    y: sensorData.values,
+                    type: 'scatter',
+                    name: 'Original',
+                    line: {color: 'blue'}
+                };
+                
+                const trace2 = {
+                    x: sensorData.time,
+                    y: analysis.seasonal,
+                    type: 'scatter',
+                    name: 'Seasonal',
+                    line: {color: 'green'}
+                };
+                
+                const layout = {
+                    title: 'Seasonal Decomposition',
+                    xaxis: {title: 'Time'},
+                    yaxis: {title: 'Movement'},
+                    showlegend: true
+                };
+                
+                Plotly.newPlot(seasonalGraphContainer, [trace1, trace2], layout);
+                
+                // Update seasonal pattern info
+                seasonalPatternInfo.innerHTML = `
+                    <p><strong>Seasonal Pattern:</strong> ${analysis.has_seasonal ? 'Detected' : 'Not detected'}</p>
+                    <p><strong>Amplitude:</strong> ${analysis.amplitude.toFixed(2)}mm</p>
+                    <p><strong>Pattern:</strong> ${analysis.is_consistent ? 'Consistent' : 'Inconsistent'}</p>
+                `;
+                
+                // Update seasonal metrics
+                seasonalMetricsInfo.innerHTML = `
+                    <p><strong>Summer Average:</strong> ${analysis.summer_avg.toFixed(2)}mm</p>
+                    <p><strong>Winter Average:</strong> ${analysis.winter_avg.toFixed(2)}mm</p>
+                    <p><strong>Seasonal Range:</strong> ${(analysis.summer_avg - analysis.winter_avg).toFixed(2)}mm</p>
+                `;
+                
+            } catch (error) {
+                console.error('Seasonal analysis error:', error);
+                seasonalGraphContainer.innerHTML = `<div class="p-4 bg-red-50 rounded-lg"><p class="text-center text-red-600">Error: ${error.message}</p></div>`;
+            }
+        }
+
+        async function runAdvancedAnalysis() {
+            const advancedGraphContainer = document.getElementById('advanced-graph-container');
+            const patternAnalysisInfo = document.getElementById('pattern-analysis-info');
+            const anomalyInfo = document.getElementById('anomaly-info');
+            
+            try {
+                // Show loading state
+                advancedGraphContainer.innerHTML = '<div class="p-4 bg-blue-50 rounded-lg"><p class="text-center text-blue-600">Running advanced analysis...</p></div>';
+                
+                // Get the first sensor's data
+                const sensorData = window.uploadedData.plot_data[Object.keys(window.uploadedData.plot_data)[0]];
+                
+                // Send data for advanced analysis
+                const response = await axios.post('/timeseries-analysis', {
+                    data: sensorData.values
+                });
+                
+                const result = response.data;
+                
+                // Create advanced analysis plot
+                const trace = {
+                    x: sensorData.time,
+                    y: sensorData.values,
+                    type: 'scatter',
+                    name: 'Sensor Data',
+                    line: {color: 'blue'}
+                };
+                
+                const layout = {
+                    title: 'Advanced Analysis',
+                    xaxis: {title: 'Time'},
+                    yaxis: {title: 'Movement'},
+                    showlegend: true
+                };
+                
+                Plotly.newPlot(advancedGraphContainer, [trace], layout);
+                
+                // Update pattern analysis info
+                patternAnalysisInfo.innerHTML = `
+                    <p><strong>Pattern Type:</strong> ${result.patterns}</p>
+                    <p><strong>Repeating Patterns:</strong> ${result.motifs}</p>
+                    <p><strong>Shape Classification:</strong> ${result.shape_classification}</p>
+                `;
+                
+                // Update anomaly info
+                anomalyInfo.innerHTML = `
+                    <p><strong>Anomalies Detected:</strong> ${result.anomalies}</p>
+                `;
+                
+            } catch (error) {
+                console.error('Advanced analysis error:', error);
+                advancedGraphContainer.innerHTML = `<div class="p-4 bg-red-50 rounded-lg"><p class="text-center text-red-600">Error: ${error.message}</p></div>`;
             }
         }
     </script>

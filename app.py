@@ -344,60 +344,121 @@ async def timeseries_analysis(series: TimeSeriesData):
         
         logger.debug(f"Cleaned data has {len(cleaned_data)} valid points")
         
-        # Normalize the data
-        data_mean = np.mean(cleaned_data)
-        data_std = np.std(cleaned_data)
+        # Convert to numpy array for analysis
+        data_array = np.array(cleaned_data)
         
+        # Calculate basic statistics
+        data_mean = np.mean(data_array)
+        data_std = np.std(data_array)
+        
+        # Normalize the data
         if data_std > 0:
-            normalized_data = (cleaned_data - data_mean) / data_std
+            normalized_data = (data_array - data_mean) / data_std
         else:
             logger.warning("Data has zero standard deviation, using mean subtraction only")
-            normalized_data = [x - data_mean for x in cleaned_data]
+            normalized_data = data_array - data_mean
         
-        # Calculate matrix profile
+        # Calculate matrix profile for pattern analysis
         window_size = min(50, len(normalized_data) // 4)
         matrix_profile = stumpy.stump(normalized_data, m=window_size)
         
-        # Find motifs
+        # Find motifs (repeating patterns)
         motif_indices = stumpy.motifs(normalized_data, matrix_profile, num_motifs=3)
+        num_motifs = len(motif_indices) if motif_indices is not None else 0
         
         # Find anomalies
         anomaly_indices = stumpy.anomalies(normalized_data, matrix_profile)
+        num_anomalies = len(anomaly_indices) if anomaly_indices is not None else 0
         
-        # Classify shapes based on DTW distances
-        shape_distances = {}
-        for shape_name, shape_data in SHAPE_TEMPLATES.items():
-            distance = dtw.distance(normalized_data, shape_data)
-            shape_distances[shape_name] = distance
+        # Classify the pattern type
+        pattern_type = classify_pattern(normalized_data)
         
-        closest_shape = min(shape_distances.items(), key=lambda x: x[1])[0]
+        # Calculate seasonal decomposition
+        seasonal = seasonal_decompose(data_array, period=30)
         
-        # Perform thermal analysis if the data appears to be temperature
-        thermal_analysis = None
-        if np.mean(cleaned_data) > 0 and np.mean(cleaned_data) < 100:  # Likely temperature data
-            temp_mean = np.mean(cleaned_data)
-            temp_std = np.std(cleaned_data)
-            temp_min = np.min(cleaned_data)
-            temp_max = np.max(cleaned_data)
-            
-            thermal_analysis = {
-                "mean_temperature": round(temp_mean, 2),
-                "temperature_std": round(temp_std, 2),
-                "temperature_range": f"{round(temp_min, 2)}°C to {round(temp_max, 2)}°C",
-                "analysis": f"Temperature varies between {round(temp_min, 2)}°C and {round(temp_max, 2)}°C with a mean of {round(temp_mean, 2)}°C. "
-                           f"The standard deviation of {round(temp_std, 2)}°C indicates {'high' if temp_std > 5 else 'moderate' if temp_std > 2 else 'low'} temperature variability."
-            }
+        # Determine if the pattern is seasonal
+        is_seasonal = np.std(seasonal.seasonal) > 0.1 * np.std(data_array)
+        
+        # Calculate trend
+        trend = np.polyfit(range(len(data_array)), data_array, 1)[0]
+        is_trending = abs(trend) > 0.1 * np.std(data_array)
+        
+        # Determine the overall pattern
+        if is_seasonal and is_trending:
+            pattern = "Seasonal with Trend"
+        elif is_seasonal:
+            pattern = "Seasonal"
+        elif is_trending:
+            pattern = "Trending"
+        else:
+            pattern = "Stable"
         
         return {
-            "patterns": f"Data shows {closest_shape} pattern",
-            "motifs": f"Found {len(motif_indices)} repeating patterns",
-            "anomalies": f"Detected {len(anomaly_indices)} anomalies",
-            "shape_classification": f"Closest matching pattern: {closest_shape}",
-            "thermal_analysis": thermal_analysis
+            "patterns": pattern,
+            "motifs": f"Found {num_motifs} repeating patterns",
+            "anomalies": f"Detected {num_anomalies} anomalies",
+            "shape_classification": pattern_type,
+            "seasonal_analysis": {
+                "is_seasonal": bool(is_seasonal),
+                "seasonal_strength": float(np.std(seasonal.seasonal) / np.std(data_array)),
+                "trend": float(trend),
+                "is_trending": bool(is_trending)
+            }
         }
     except Exception as e:
         logger.error(f"Error in timeseries analysis: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+def classify_pattern(data):
+    """Classify the pattern type of the time series data."""
+    # Calculate basic statistics
+    mean = np.mean(data)
+    std = np.std(data)
+    
+    # Calculate trend
+    x = np.arange(len(data))
+    slope = np.polyfit(x, data, 1)[0]
+    
+    # Calculate seasonality
+    fft = np.fft.fft(data)
+    freqs = np.fft.fftfreq(len(data))
+    main_freq = freqs[np.argmax(np.abs(fft[1:len(fft)//2])) + 1]
+    
+    # Determine pattern type
+    if abs(slope) > 0.1 * std:
+        if slope > 0:
+            return "Upward Trend"
+        else:
+            return "Downward Trend"
+    elif abs(main_freq) > 0.1:
+        return "Cyclic"
+    elif std > 0.5 * np.mean(np.abs(data)):
+        return "Volatile"
+    else:
+        return "Stable"
+
+def seasonal_decompose(data, period=30):
+    """Perform seasonal decomposition on the time series data."""
+    # Create a pandas Series with a dummy index
+    series = pd.Series(data)
+    
+    # Calculate moving averages
+    trend = series.rolling(window=period, center=True).mean()
+    
+    # Detrend the data
+    detrended = series - trend
+    
+    # Calculate seasonal component
+    seasonal = detrended.rolling(window=period, center=True).mean()
+    
+    # Calculate residual
+    residual = detrended - seasonal
+    
+    # Create a named tuple to mimic statsmodels decomposition
+    from collections import namedtuple
+    Decomposition = namedtuple('Decomposition', ['trend', 'seasonal', 'resid'])
+    
+    return Decomposition(trend=trend, seasonal=seasonal, resid=residual)
 
 @app.post("/debug-timeseries")
 async def debug_timeseries_analysis(series: list):
