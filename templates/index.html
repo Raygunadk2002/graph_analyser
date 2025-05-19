@@ -150,6 +150,7 @@
                     logoutBtn.addEventListener('click', () => {
                         localStorage.removeItem('authToken');
                         localStorage.removeItem('selectedProjectId');
+                        localStorage.removeItem('uploadedData');
                         window.location.href = '/login';
                     });
                 }
@@ -287,6 +288,26 @@
             window.columnMapping = {};
             window.uploadedData = null;
             window.rainfallData = null;
+
+            // Restore previous upload if available
+            const storedData = localStorage.getItem('uploadedData');
+            if (storedData) {
+                try {
+                    window.uploadedData = JSON.parse(storedData);
+                    window.detectedColumns = window.uploadedData.columns || [];
+                    window.columnMapping = window.uploadedData.mapped_columns || {};
+                    showColumnMapping();
+                    // Set mapping selects to stored values
+                    Object.entries(window.columnMapping).forEach(([key, val]) => {
+                        const sel = document.getElementById(`mapping-${key}`);
+                        if (sel) sel.value = val;
+                    });
+                    updateUIWithResults();
+                    updateUI();
+                } catch (err) {
+                    console.error('Failed to restore uploaded data', err);
+                }
+            }
             
             // Test server connection
             if (fileInput) {
@@ -363,6 +384,11 @@
                             uploadStatus.className = 'text-center mt-2 text-green-600';
                         }
                         window.uploadedData = response.data.data;
+                        try {
+                            localStorage.setItem('uploadedData', JSON.stringify(window.uploadedData));
+                        } catch (storageError) {
+                            console.error('Failed to store uploaded data', storageError);
+                        }
                         
                         // Clear any previously plotted graph and sensor dropdown to avoid showing stale data
                         const basicGraphContainer = document.getElementById('basic-graph-container');

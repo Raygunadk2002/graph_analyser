@@ -65,19 +65,6 @@
 
         <div class="row mb-3">
             <div class="col-md-4">
-                <form id="signup-form" class="d-flex mb-2">
-                    <input type="text" id="signup-username" class="form-control me-2" placeholder="Username">
-                    <input type="password" id="signup-password" class="form-control me-2" placeholder="Password">
-                    <button class="btn btn-secondary" type="submit">Sign Up</button>
-                </form>
-                <form id="login-form" class="d-flex mb-2">
-                    <input type="text" id="login-username" class="form-control me-2" placeholder="Username">
-                    <input type="password" id="login-password" class="form-control me-2" placeholder="Password">
-                    <button class="btn btn-primary" type="submit">Login</button>
-                </form>
-                <div id="auth-status" class="small"></div>
-            </div>
-            <div class="col-md-4">
                 <label class="form-label">Select Project</label>
                 <select id="project-select" class="form-select mb-2"></select>
                 <label class="form-label mt-2">Select File</label>
@@ -129,9 +116,9 @@
             const loading = document.getElementById('loading');
             const errorMessage = document.getElementById('errorMessage');
             const analysisResults = document.getElementById('analysisResults');
-            const authStatus = document.getElementById('auth-status');
-            const signupForm = document.getElementById('signup-form');
-            const loginForm = document.getElementById('login-form');
+            const authStatus = null;
+            const signupForm = null;
+            const loginForm = null;
             const projectSelect = document.getElementById('project-select');
             const fileSelect = document.getElementById('file-select');
             const createProjectBtn = document.getElementById('create-project');
@@ -203,42 +190,6 @@
                 await performSeasonalAnalysis();
             }
 
-            if (signupForm) {
-                signupForm.addEventListener('submit', async e => {
-                    e.preventDefault();
-                    const res = await fetch('/signup', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            username: document.getElementById('signup-username').value,
-                            password: document.getElementById('signup-password').value
-                        })
-                    });
-                    authStatus.textContent = res.ok ? 'Signup successful' : 'Signup failed';
-                });
-            }
-
-            if (loginForm) {
-                loginForm.addEventListener('submit', async e => {
-                    e.preventDefault();
-                    const res = await fetch('/login', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            username: document.getElementById('login-username').value,
-                            password: document.getElementById('login-password').value
-                        })
-                    });
-                    if (res.ok) {
-                        const data = await res.json();
-                        localStorage.setItem('authToken', data.token);
-                        authStatus.textContent = 'Logged in';
-                        loadProjects();
-                    } else {
-                        authStatus.textContent = 'Login failed';
-                    }
-                });
-            }
 
             if (createProjectBtn) {
                 createProjectBtn.addEventListener('click', async e => {
