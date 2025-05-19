@@ -55,6 +55,7 @@ ANALYSIS_OUTPUT_DIR.mkdir(exist_ok=True)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/analysis_outputs", StaticFiles(directory="analysis_outputs"), name="analysis_outputs")
 
 # Templates
 templates = Jinja2Templates(directory="templates")
@@ -1202,6 +1203,12 @@ async def seasonal_page(request: Request):
 async def advanced_page(request: Request):
     """Serve the advanced analysis page"""
     return templates.TemplateResponse("advanced.html", {"request": request})
+
+
+@app.get("/correlation")
+async def correlation_page(request: Request):
+    """Serve the correlation analysis page"""
+    return templates.TemplateResponse("correlation.html", {"request": request})
 
 @app.post("/analyse/seasonal")
 async def seasonal_analysis(data: dict):
