@@ -29,6 +29,10 @@
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold mb-6">Correlation Analysis</h1>
         <p class="mb-4 text-gray-700">These plots show the relationship between structural movement, rainfall and temperature based on example data analysed at server startup.</p>
+        <div id="summary" class="mb-8">
+            <h2 class="text-xl font-semibold mb-2">Analysis Summary</h2>
+            <pre id="summary-content" class="bg-white p-4 rounded shadow whitespace-pre-wrap"></pre>
+        </div>
         <div class="space-y-8">
             <div>
                 <h2 class="text-xl font-semibold mb-2">Scatter Matrix</h2>
@@ -56,6 +60,14 @@
                     window.location.href = '/login';
                 });
             }
+
+            axios.get('/correlation-summary')
+                .then(res => {
+                    document.getElementById('summary-content').textContent = JSON.stringify(res.data, null, 2);
+                })
+                .catch(() => {
+                    document.getElementById('summary-content').textContent = 'Summary not available';
+                });
         });
     </script>
 </body>

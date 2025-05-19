@@ -1210,6 +1210,17 @@ async def correlation_page(request: Request):
     """Serve the correlation analysis page"""
     return templates.TemplateResponse("correlation.html", {"request": request})
 
+
+@app.get("/correlation-summary")
+async def correlation_summary():
+    """Return regression and correlation summary as JSON."""
+    summary_file = ANALYSIS_OUTPUT_DIR / "summary.json"
+    if not summary_file.exists():
+        raise HTTPException(status_code=404, detail="Summary not available")
+    with summary_file.open() as f:
+        data = json.load(f)
+    return JSONResponse(data)
+
 @app.post("/analyse/seasonal")
 async def seasonal_analysis(data: dict):
     """Perform seasonal analysis on the stored data"""
