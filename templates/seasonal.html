@@ -74,6 +74,8 @@
             <div class="col-md-4">
                 <label class="form-label">Select Project</label>
                 <select id="project-select" class="form-select mb-2"></select>
+                <label class="form-label mt-2">Select File</label>
+                <select id="file-select" class="form-select mb-2"></select>
                 <div class="d-flex">
                     <input type="text" id="new-project-name" class="form-control me-2" placeholder="New project name">
                     <button id="create-project" class="btn btn-success">Create</button>
@@ -124,7 +126,8 @@
             const authStatus = document.getElementById('auth-status');
             const signupForm = document.getElementById('signup-form');
             const loginForm = document.getElementById('login-form');
-            const projectSelect = document.getElementById('project-select');
+           const projectSelect = document.getElementById('project-select');
+            const fileSelect = document.getElementById('file-select');
             const createProjectBtn = document.getElementById('create-project');
             const newProjectName = document.getElementById('new-project-name');
             const fileInput = document.getElementById('file-input');
@@ -145,6 +148,41 @@
                     opt.textContent = p.name;
                     projectSelect.appendChild(opt);
                 });
+                if (data.projects.length > 0) {
+                    await loadFiles();
+                }
+            }
+
+            async function loadFiles() {
+                const token = localStorage.getItem('authToken');
+                if (!token) return;
+                const pid = projectSelect.value;
+                if (!pid) return;
+                const res = await fetch(`/projects/${pid}/files`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!res.ok) return;
+                const data = await res.json();
+                fileSelect.innerHTML = '';
+                data.files.forEach(f => {
+                    const opt = document.createElement('option');
+                    opt.value = f.id;
+                    opt.textContent = f.filename;
+                    fileSelect.appendChild(opt);
+                });
+                if (data.files.length > 0) {
+                    fileSelect.value = data.files[0].id;
+                    currentFileId = data.files[0].id;
+                    await loadExistingAnalysis();
+                }
+            }
+
+            async function loadExistingAnalysis() {
+                if (!currentFileId) return;
+                const token = localStorage.getItem('authToken');
+                const res = await fetch(`/files/${currentFileId}/latest-analysis`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!res.ok) return;
+                const data = await res.json();
+                await runBasicAnalysis(data.mapping);
+                await performSeasonalAnalysis();
             }
 
             if (signupForm) {
@@ -297,6 +335,17 @@
 
             if (fileInput) {
                 fileInput.addEventListener('change', uploadAndAnalyse);
+            }
+
+            if (projectSelect) {
+                projectSelect.addEventListener('change', loadFiles);
+            }
+
+            if (fileSelect) {
+                fileSelect.addEventListener('change', () => {
+                    currentFileId = fileSelect.value;
+                    loadExistingAnalysis();
+                });
             }
 
             if (localStorage.getItem('authToken')) {
