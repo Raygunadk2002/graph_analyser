@@ -185,9 +185,12 @@ async def list_projects(request: Request):
 async def create_project(request: Request, data: dict):
     user_id = get_user_id_from_request(request)
     name = data.get("name")
+    job_number = data.get("job_number")
+    address = data.get("address")
+    postcode = data.get("postcode")
     if not name:
         raise HTTPException(status_code=400, detail="Project name required")
-    project_id = db.create_project(user_id, name)
+    project_id = db.create_project(user_id, name, job_number, address, postcode)
     return {"project_id": project_id}
 
 
