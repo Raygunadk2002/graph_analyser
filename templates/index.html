@@ -14,10 +14,10 @@
         <div class="container mx-auto px-4">
             <div class="flex justify-between items-center py-4">
                 <div class="flex items-center">
-                    <a href="/" class="text-xl font-bold text-gray-800">Structural Movement Analysis</a>
+                    <a href="/dashboard" class="text-xl font-bold text-gray-800">Structural Movement Analysis</a>
                 </div>
                 <div class="flex space-x-4">
-                    <a href="/" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Basic Analysis</a>
+                    <a href="/dashboard" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Basic Analysis</a>
                     <a href="/seasonal" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Seasonal Analysis</a>
                     <a href="/advanced" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Advanced Analysis</a>
                     <a href="/docs" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">API Docs</a>
@@ -30,19 +30,7 @@
         <h1 class="text-3xl font-bold mb-8">Basic Analysis</h1>
 
         <!-- Authentication Section -->
-        <div id="auth-section" class="mb-6 space-y-2">
-            <form id="signup-form" class="space-x-2">
-                <input type="text" id="signup-username" class="border px-2 py-1" placeholder="Username">
-                <input type="password" id="signup-password" class="border px-2 py-1" placeholder="Password">
-                <button type="submit" class="bg-blue-600 text-white px-3 py-1 rounded">Sign Up</button>
-            </form>
-            <form id="login-form" class="space-x-2">
-                <input type="text" id="login-username" class="border px-2 py-1" placeholder="Username">
-                <input type="password" id="login-password" class="border px-2 py-1" placeholder="Password">
-                <button type="submit" class="bg-green-600 text-white px-3 py-1 rounded">Login</button>
-            </form>
-            <div id="auth-status" class="text-sm"></div>
-        </div>
+                </div>
 
         <!-- Project Section -->
         <div id="project-section" class="mb-6 hidden">
@@ -57,7 +45,7 @@
         <!-- File Upload Section -->
         <div class="mb-8">
             <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <input type="file" id="file-input" class="hidden" accept=".csv,.xlsx,.xls">
+                <input type="file" multiple id="file-input" class="hidden" accept=".csv,.xlsx,.xls">
                 <label for="file-input" class="cursor-pointer">
                     <div class="text-gray-600 mb-4">
                         <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,6 +113,10 @@
     <script>
         // Add initialization check
         document.addEventListener('DOMContentLoaded', function() {
+            if (!localStorage.getItem('authToken')) {
+                window.location.href = '/login';
+                return;
+            }
             console.log('DOM fully loaded and parsed');
             initializeApp();
         });
@@ -300,8 +292,10 @@
             
             // File upload handler
             async function handleFileUpload(e) {
-                const file = e.target.files[0];
-                if (!file) return;
+                const files = Array.from(e.target.files || []);
+                if (!files.length) return;
+
+                for (const file of files) {
 
                 // Reset data
                 window.uploadedData = null;
@@ -391,6 +385,7 @@
                         uploadStatus.textContent = 'Error: ' + errorMessage;
                         uploadStatus.className = 'text-center mt-2 text-red-600';
                     }
+                }
                 }
             }
             

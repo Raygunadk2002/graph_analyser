@@ -36,6 +36,12 @@ python app.py
 
 The application will be available at `http://localhost:8000`
 
+## Usage
+
+1. Open `http://localhost:8000` and create an account or log in.
+2. After logging in you will be redirected to the dashboard at `/dashboard`.
+3. Create a project and upload one or more files for analysis.
+
 ## Data Format
 
 The application expects data files (Excel or CSV) with the following columns:
