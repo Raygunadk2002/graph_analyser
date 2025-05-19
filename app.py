@@ -190,6 +190,17 @@ async def create_project(request: Request, data: dict):
     project_id = db.create_project(user_id, name)
     return {"project_id": project_id}
 
+
+@app.delete("/projects/{project_id}")
+async def delete_project(request: Request, project_id: int):
+    """Delete a project owned by the authenticated user."""
+    user_id = get_user_id_from_request(request)
+    projects = db.get_projects(user_id)
+    if not any(p["id"] == project_id for p in projects):
+        raise HTTPException(status_code=404, detail="Project not found")
+    db.delete_project(project_id)
+    return {"status": "deleted"}
+
 @app.get("/projects/{project_id}/files")
 async def list_project_files(request: Request, project_id: int):
     """List files associated with a project."""
