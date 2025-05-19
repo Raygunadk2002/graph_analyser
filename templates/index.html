@@ -209,7 +209,7 @@
                 }
             }
 
-            async function loadFiles() {
+           async function loadFiles() {
                 try {
                     const pid = projectSelect.value;
                     if (!pid) return;
@@ -246,6 +246,7 @@
                     console.error('Error loading files', err);
                 }
             }
+            window.loadFiles = loadFiles;
 
             async function loadExistingAnalysis() {
                 if (!currentFileId) return;
@@ -507,7 +508,9 @@
                         
                         // Update UI state
                         updateUI();
-                        await loadFiles();
+                        if (window.loadFiles) {
+                            await window.loadFiles();
+                        }
                     } else {
                         throw new Error(response.data.detail || 'Unexpected response format');
                     }
