@@ -179,6 +179,7 @@
             async function loadProjects() {
                 try {
                     const res = await axios.get('/projects');
+                    window.projectData = res.data.projects;
                     projectSelect.innerHTML = '';
                     res.data.projects.forEach(p => {
                         const opt = document.createElement('option');
@@ -189,6 +190,11 @@
                     const saved = localStorage.getItem('selectedProjectId');
                     if (saved) {
                         projectSelect.value = saved;
+                    }
+                    const postcodeInput = document.getElementById('postcode-input');
+                    const selected = window.projectData.find(p => p.id == projectSelect.value);
+                    if (postcodeInput && selected && selected.postcode) {
+                        postcodeInput.value = selected.postcode;
                     }
                     projectSection.classList.remove('hidden');
                     if (res.data.projects.length > 0) {
@@ -292,6 +298,11 @@
             if (projectSelect) {
                 projectSelect.addEventListener('change', () => {
                     localStorage.setItem('selectedProjectId', projectSelect.value);
+                    const postcodeInput = document.getElementById('postcode-input');
+                    const proj = window.projectData.find(p => p.id == projectSelect.value);
+                    if (postcodeInput) {
+                        postcodeInput.value = proj && proj.postcode ? proj.postcode : '';
+                    }
                     loadFiles();
                 });
             }

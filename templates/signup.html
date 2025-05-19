@@ -22,7 +22,7 @@
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         if (localStorage.getItem('authToken')) {
-            window.location.href = '/dashboard';
+            window.location.href = '/profile';
             return;
         }
         const signupForm = document.getElementById('signup-form');
@@ -37,7 +37,7 @@
 
                 const loginRes = await axios.post('/login', { username, password });
                 localStorage.setItem('authToken', loginRes.data.token);
-                window.location.href = '/dashboard';
+                window.location.href = '/profile';
             } catch (err) {
                 authStatus.textContent = 'Signup error: ' + (err.response?.data?.detail || err.message);
                 authStatus.className = 'text-red-600 text-sm text-center';

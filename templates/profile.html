@@ -23,8 +23,27 @@
     </nav>
 
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-8">Your Projects</h1>
+        <h1 class="text-3xl font-bold mb-4">Your Projects</h1>
+        <button id="new-project-btn" class="bg-green-600 text-white px-3 py-1 rounded mb-4">New Project</button>
+        <div id="no-projects" class="text-gray-700 mb-4"></div>
         <div id="projects-container" class="space-y-4"></div>
+
+        <!-- Modal for creating a project -->
+        <div id="project-modal" class="hidden fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50">
+            <div class="bg-white p-6 rounded shadow w-full max-w-md">
+                <h2 class="text-xl font-bold mb-4">Create Project</h2>
+                <div class="space-y-2">
+                    <input type="text" id="proj-name" class="border px-2 py-1 w-full" placeholder="Project name">
+                    <input type="text" id="proj-job" class="border px-2 py-1 w-full" placeholder="Job number">
+                    <input type="text" id="proj-address" class="border px-2 py-1 w-full" placeholder="Address">
+                    <input type="text" id="proj-postcode" class="border px-2 py-1 w-full" placeholder="Postcode">
+                </div>
+                <div class="flex justify-end space-x-2 mt-4">
+                    <button id="cancel-project" class="px-3 py-1 border rounded">Cancel</button>
+                    <button id="save-project" class="bg-blue-600 text-white px-3 py-1 rounded">Create</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -34,6 +53,13 @@
             return;
         }
         loadProjects();
+        document.getElementById('new-project-btn').addEventListener('click', () => {
+            document.getElementById('project-modal').classList.remove('hidden');
+        });
+        document.getElementById('cancel-project').addEventListener('click', () => {
+            document.getElementById('project-modal').classList.add('hidden');
+        });
+        document.getElementById('save-project').addEventListener('click', createProject);
     });
 
     document.getElementById('logout-btn').addEventListener('click', function() {
@@ -48,6 +74,12 @@
         }).then(res => {
             const container = document.getElementById('projects-container');
             container.innerHTML = '';
+            const noProjects = document.getElementById('no-projects');
+            if (res.data.projects.length === 0) {
+                noProjects.textContent = 'Start your first analysis project';
+            } else {
+                noProjects.textContent = '';
+            }
             res.data.projects.forEach(p => {
                 const div = document.createElement('div');
                 div.className = 'bg-white p-4 shadow rounded flex justify-between items-center';
@@ -100,6 +132,31 @@
                 localStorage.removeItem('authToken');
                 window.location.href = '/login';
             }
+        });
+    }
+
+    function createProject() {
+        const name = document.getElementById('proj-name').value.trim();
+        const job = document.getElementById('proj-job').value.trim();
+        const address = document.getElementById('proj-address').value.trim();
+        const postcode = document.getElementById('proj-postcode').value.trim();
+        if (!name) return;
+        axios.post('/projects', {
+            name: name,
+            job_number: job,
+            address: address,
+            postcode: postcode
+        }, {
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') }
+        }).then(() => {
+            document.getElementById('project-modal').classList.add('hidden');
+            document.getElementById('proj-name').value = '';
+            document.getElementById('proj-job').value = '';
+            document.getElementById('proj-address').value = '';
+            document.getElementById('proj-postcode').value = '';
+            loadProjects();
+        }).catch(err => {
+            console.error('Error creating project', err);
         });
     }
     </script>

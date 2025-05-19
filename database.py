@@ -47,10 +47,23 @@ class Database:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     name TEXT NOT NULL,
+                    job_number TEXT,
+                    address TEXT,
+                    postcode TEXT,
                     created_at TIMESTAMP NOT NULL,
                     FOREIGN KEY (user_id) REFERENCES users(id)
                 )
             ''')
+
+            # Ensure new columns exist when upgrading from previous versions
+            cursor.execute("PRAGMA table_info(projects)")
+            cols = [row[1] for row in cursor.fetchall()]
+            if 'job_number' not in cols:
+                cursor.execute("ALTER TABLE projects ADD COLUMN job_number TEXT")
+            if 'address' not in cols:
+                cursor.execute("ALTER TABLE projects ADD COLUMN address TEXT")
+            if 'postcode' not in cols:
+                cursor.execute("ALTER TABLE projects ADD COLUMN postcode TEXT")
 
             # Create files table
             cursor.execute('''
@@ -328,20 +341,34 @@ class Database:
         row = cursor.fetchone()
         return row[0] if row else None
 
-    def create_project(self, user_id: int, name: str) -> int:
+    def create_project(self, user_id: int, name: str, job_number: Optional[str] = None,
+                       address: Optional[str] = None, postcode: Optional[str] = None) -> int:
         cursor = self.conn.cursor()
         cursor.execute(
-            "INSERT INTO projects (user_id, name, created_at) VALUES (?, ?, ?)",
-            (user_id, name, datetime.now())
+            "INSERT INTO projects (user_id, name, job_number, address, postcode, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, name, job_number, address, postcode, datetime.now())
         )
         self.conn.commit()
         return cursor.lastrowid
 
     def get_projects(self, user_id: int) -> List[Dict[str, Any]]:
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name FROM projects WHERE user_id = ?", (user_id,))
+        cursor.execute(
+            "SELECT id, name, job_number, address, postcode FROM projects WHERE user_id = ?",
+            (user_id,)
+        )
         rows = cursor.fetchall()
-        return [{"id": row[0], "name": row[1]} for row in rows]
+        return [
+            {
+                "id": row[0],
+                "name": row[1],
+                "job_number": row[2],
+                "address": row[3],
+                "postcode": row[4],
+            }
+            for row in rows
+        ]
 
     def delete_project(self, project_id: int) -> None:
         """Delete a project and all related data."""
