@@ -139,4 +139,33 @@ class DataLoader:
         return self.mapping
 
 # Create a global instance
-data_loader = DataLoader() 
+data_loader = DataLoader()
+
+
+def _build_date_range(days: int = 365) -> pd.DatetimeIndex:
+    """Utility to create a daily date range for the example loaders."""
+    end = pd.Timestamp.today().normalize()
+    return pd.date_range(end=end, periods=days, freq="D")
+
+
+def load_monitoring_data(days: int = 365) -> pd.DataFrame:
+    """Return example monitoring data with ``timestamp`` and ``movement_mm`` columns."""
+    dates = _build_date_range(days)
+    movement = np.cumsum(np.random.normal(scale=0.5, size=len(dates)))
+    return pd.DataFrame({"timestamp": dates, "movement_mm": movement})
+
+
+def load_rainfall_data(days: int = 365) -> pd.DataFrame:
+    """Return example rainfall data with ``timestamp`` and ``rainfall_mm`` columns."""
+    dates = _build_date_range(days)
+    rainfall = np.random.gamma(shape=0.5, scale=4.0, size=len(dates))
+    return pd.DataFrame({"timestamp": dates, "rainfall_mm": rainfall})
+
+
+def load_temperature_data(days: int = 365) -> pd.DataFrame:
+    """Return example temperature data with ``timestamp`` and ``temperature_C`` columns."""
+    dates = _build_date_range(days)
+    base = 15 + 10 * np.sin(np.linspace(0, 2 * np.pi, len(dates)))
+    noise = np.random.normal(scale=2.0, size=len(dates))
+    temp = base + noise
+    return pd.DataFrame({"timestamp": dates, "temperature_C": temp})
