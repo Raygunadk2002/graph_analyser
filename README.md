@@ -59,4 +59,4 @@ The application expects data files (Excel or CSV) with the following columns:
 
 ## License
 
-MIT License 
+MIT License

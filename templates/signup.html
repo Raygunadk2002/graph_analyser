@@ -30,12 +30,14 @@
         signupForm.addEventListener('submit', async e => {
             e.preventDefault();
             try {
-                await axios.post('/signup', {
-                    username: document.getElementById('signup-username').value,
-                    password: document.getElementById('signup-password').value
-                });
-                authStatus.textContent = 'Signup successful. You can now login.';
-                authStatus.className = 'text-green-600 text-sm text-center';
+                const username = document.getElementById('signup-username').value;
+                const password = document.getElementById('signup-password').value;
+
+                await axios.post('/signup', { username, password });
+
+                const loginRes = await axios.post('/login', { username, password });
+                localStorage.setItem('authToken', loginRes.data.token);
+                window.location.href = '/dashboard';
             } catch (err) {
                 authStatus.textContent = 'Signup error: ' + (err.response?.data?.detail || err.message);
                 authStatus.className = 'text-red-600 text-sm text-center';
