@@ -58,7 +58,7 @@ def compute_rolling_correlation(df: pd.DataFrame, window: int = 30) -> pd.DataFr
     return pd.DataFrame(records)
 
 
-def first_significant_date(rcorr: pd.DataFrame, r_thresh: float = 0.5, p_thresh: float = 0.05, consecutive: int = 1) -> Optional[pd.Timestamp]:
+def first_significant_date(rcorr: pd.DataFrame, r_thresh: float = 0.4, p_thresh: float = 0.05, consecutive: int = 1) -> Optional[pd.Timestamp]:
     """Find the first date where correlation exceeds thresholds."""
     mask = (rcorr['r'].abs() >= r_thresh) & (rcorr['p'] < p_thresh)
     if consecutive > 1:
@@ -103,7 +103,7 @@ def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> N
 
     logger.info("Computing rolling correlation...")
     rcorr = compute_rolling_correlation(df, window=30)
-    first_date = first_significant_date(rcorr)
+    first_date = first_significant_date(rcorr, r_thresh=0.4)
     if not rcorr.empty:
         plt.plot(rcorr['timestamp'], rcorr['r'])
         plt.axhline(0, color='black', linewidth=0.5)
@@ -129,7 +129,7 @@ def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> N
         },
         "rolling_correlation": {
             "window_days": 30,
-            "threshold_r": 0.5,
+            "threshold_r": 0.4,
             "threshold_p": 0.05,
             "first_significant_date": first_date.strftime('%Y-%m-%d') if first_date is not None else None,
         },
