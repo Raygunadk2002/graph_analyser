@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Correlation Analysis - Structural Movement Graph Analyser</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow-lg">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <a href="/dashboard" class="text-xl font-bold text-gray-800">Structural Movement Analysis</a>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="/dashboard" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Basic Analysis</a>
+                    <a href="/seasonal" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Seasonal Analysis</a>
+                    <a href="/advanced" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Advanced Analysis</a>
+                    <a href="/correlation" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium font-semibold">Correlation Analysis</a>
+                    <a href="/profile" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Profile</a>
+                    <a href="/docs" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">API Docs</a>
+                    <button id="logout-btn" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-6">Correlation Analysis</h1>
+        <p class="mb-4 text-gray-700">These plots show the relationship between structural movement, rainfall and temperature based on example data analysed at server startup.</p>
+        <div class="space-y-8">
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Scatter Matrix</h2>
+                <img src="/analysis_outputs/scatter_matrix.png" alt="Scatter matrix" class="mx-auto border rounded shadow">
+            </div>
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Rainfall Cross-Correlation</h2>
+                <img src="/analysis_outputs/rainfall_ccf.png" alt="Rainfall cross correlation" class="mx-auto border rounded shadow">
+            </div>
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Temperature Cross-Correlation</h2>
+                <img src="/analysis_outputs/temperature_ccf.png" alt="Temperature cross correlation" class="mx-auto border rounded shadow">
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', () => {
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('selectedProjectId');
+                    window.location.href = '/login';
+                });
+            }
+        });
+    </script>
+</body>
+</html>
