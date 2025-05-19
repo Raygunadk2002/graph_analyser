@@ -9,6 +9,8 @@ A web application for analyzing and visualizing structural movement data, includ
 - Analysis of seasonal patterns and trends (displacement only)
 - Temperature correlation analysis
 - Export capabilities for reports
+- Advanced analysis including STL decomposition, change point detection,
+  rolling trend estimation, frequency spectrum and Kalman filtering
 
 ## Setup
 

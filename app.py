@@ -799,6 +799,52 @@ def frequency_spectrum(series: pd.Series) -> Dict[str, List[float]]:
         logger.error(f"FFT failed: {e}")
         return {"frequency": [], "amplitude": []}
 
+def stl_decompose(series: pd.Series, period: int = 30) -> Dict[str, List[float]]:
+    """Return STL decomposition components."""
+    try:
+        from statsmodels.tsa.seasonal import STL
+        res = STL(series, period=period, robust=True).fit()
+        return {
+            "trend": res.trend.tolist(),
+            "seasonal": res.seasonal.tolist(),
+            "resid": res.resid.tolist(),
+        }
+    except Exception as e:
+        logger.error(f"STL decomposition failed: {e}")
+        return {"trend": [], "seasonal": [], "resid": []}
+
+def detect_change_points(series: pd.Series, penalty: float = 10.0) -> List[int]:
+    """Detect change points using PELT."""
+    try:
+        import ruptures as rpt
+        algo = rpt.Pelt(model="rbf").fit(series.values)
+        bkps = algo.predict(pen=penalty)
+        return [int(bp) for bp in bkps[:-1]]
+    except Exception as e:
+        logger.error(f"Change point detection failed: {e}")
+        return []
+
+def kalman_smooth(series: pd.Series) -> List[float]:
+    """Simple 1D Kalman smoothing."""
+    try:
+        n = len(series)
+        xhat = np.zeros(n)
+        P = np.zeros(n)
+        Q = 1e-5
+        R = np.var(series) * 0.1 + 1e-6
+        xhat[0] = series.iloc[0]
+        P[0] = 1.0
+        for k in range(1, n):
+            xhat_minus = xhat[k - 1]
+            P_minus = P[k - 1] + Q
+            K = P_minus / (P_minus + R)
+            xhat[k] = xhat_minus + K * (series.iloc[k] - xhat_minus)
+            P[k] = (1 - K) * P_minus
+        return xhat.tolist()
+    except Exception as e:
+        logger.error(f"Kalman smoothing failed: {e}")
+        return series.fillna(method="ffill").tolist()
+
 @app.post("/debug-timeseries")
 async def debug_timeseries_analysis(series: list):
     """Debug time series analysis with detailed steps and diagnostics"""
@@ -1259,62 +1305,50 @@ async def advanced_analysis(data: dict):
             logger.error(f"Error converting time column to datetime: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error converting time column to datetime: {str(e)}")
         
-        # Prepare a numeric time index for regression
         df = df.sort_values(time_col)
         df.reset_index(drop=True, inplace=True)
         time_idx = np.arange(len(df))
+        time_values = df[time_col].astype(str).tolist()
 
-        # Perform advanced analysis
         results: Dict[str, Dict[str, Any]] = {}
-        for col_name, col in [('X', x_col), ('Y', y_col), ('T', t_col)]:
-            if col:
-                try:
-                    if col not in df.columns:
-                        logger.error(f"Column {col} not found in DataFrame")
-                        results[col_name] = {"error": f"Column {col} not found in data"}
-                        continue
+        for col_name, col in [("X", x_col), ("Y", y_col), ("T", t_col)]:
+            if not col:
+                continue
+            try:
+                if col not in df.columns:
+                    logger.error(f"Column {col} not found in DataFrame")
+                    results[col_name] = {"error": f"Column {col} not found in data"}
+                    continue
 
-                    series = df[col]
+                series = df[col].astype(float)
+                if series.isna().all():
+                    logger.error(f"Column {col} contains only NaN values")
+                    results[col_name] = {"error": f"Column {col} contains only NaN values"}
+                    continue
 
-                    # Check for valid data
-                    if series.isna().all():
-                        logger.error(f"Column {col} contains only NaN values")
-                        results[col_name] = {"error": f"Column {col} contains only NaN values"}
-                        continue
+                stl = stl_decompose(series)
+                change_points = detect_change_points(series)
+                slopes = rolling_slopes(series)
+                spectrum = frequency_spectrum(series)
+                kalman = kalman_smooth(series)
 
-                    temp_series = df[t_col] if t_col and t_col in df.columns else None
+                results[col_name] = {
+                    "original": series.tolist(),
+                    "stl": stl,
+                    "change_points": change_points,
+                    "rolling_slope": slopes,
+                    "spectrum": spectrum,
+                    "kalman": kalman,
+                }
+                logger.debug(f"Advanced analysis for {col_name} ({col}) completed")
+            except Exception as e:
+                logger.error(f"Error in advanced analysis for {col_name} ({col}): {str(e)}")
+                results[col_name] = {"error": str(e)}
 
-                    # Thermal compensation and detrending
-                    resid = thermal_compensate(series, temp_series, time_idx)
-                    resid = remove_diurnal_cycle(resid)
-
-                    # Change point detection
-                    change_points = detect_cusum(resid)
-
-                    # Progressive movement
-                    drift = rolling_slopes(resid)
-
-                    # Anomaly detection
-                    anomalies = detect_anomalies(resid)
-
-                    # Frequency analysis
-                    spectrum = frequency_spectrum(resid)
-
-                    results[col_name] = {
-                        "change_points": change_points,
-                        "drift_rate": drift,
-                        "anomalies": anomalies,
-                        "spectrum": spectrum,
-                    }
-                    logger.debug(f"Advanced analysis for {col_name} ({col}): {results[col_name]}")
-                except Exception as e:
-                    logger.error(f"Error in advanced analysis for {col_name} ({col}): {str(e)}")
-                    results[col_name] = {"error": str(e)}
-        
         if not results:
             raise HTTPException(status_code=400, detail="No valid data columns found for analysis.")
-        
-        return results
+
+        return {"time": time_values, **results}
         
     except HTTPException as he:
         raise he
