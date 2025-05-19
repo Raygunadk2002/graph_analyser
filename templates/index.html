@@ -20,6 +20,7 @@
                     <a href="/" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Basic Analysis</a>
                     <a href="/seasonal" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Seasonal Analysis</a>
                     <a href="/advanced" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Advanced Analysis</a>
+                    <a href="/docs" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">API Docs</a>
                 </div>
             </div>
         </div>
@@ -27,6 +28,31 @@
 
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold mb-8">Basic Analysis</h1>
+
+        <!-- Authentication Section -->
+        <div id="auth-section" class="mb-6 space-y-2">
+            <form id="signup-form" class="space-x-2">
+                <input type="text" id="signup-username" class="border px-2 py-1" placeholder="Username">
+                <input type="password" id="signup-password" class="border px-2 py-1" placeholder="Password">
+                <button type="submit" class="bg-blue-600 text-white px-3 py-1 rounded">Sign Up</button>
+            </form>
+            <form id="login-form" class="space-x-2">
+                <input type="text" id="login-username" class="border px-2 py-1" placeholder="Username">
+                <input type="password" id="login-password" class="border px-2 py-1" placeholder="Password">
+                <button type="submit" class="bg-green-600 text-white px-3 py-1 rounded">Login</button>
+            </form>
+            <div id="auth-status" class="text-sm"></div>
+        </div>
+
+        <!-- Project Section -->
+        <div id="project-section" class="mb-6 hidden">
+            <label class="block text-gray-700 font-medium mb-2">Select Project</label>
+            <select id="project-select" class="border rounded px-2 py-1 mb-2"></select>
+            <div class="flex space-x-2">
+                <input type="text" id="new-project-name" class="border px-2 py-1" placeholder="New project name">
+                <button id="create-project" class="bg-blue-600 text-white px-3 py-1 rounded">Create</button>
+            </div>
+        </div>
         
         <!-- File Upload Section -->
         <div class="mb-8">
@@ -107,13 +133,25 @@
         function initializeApp() {
             try {
                 console.log('Initializing application...');
-                
+
+                // Setup axios authorization header
+                axios.interceptors.request.use(config => {
+                    const token = localStorage.getItem('authToken');
+                    if (token) {
+                        config.headers['Authorization'] = `Bearer ${token}`;
+                    }
+                    return config;
+                });
+
+                // Setup auth form handlers
+                initializeAuth();
+
                 // Initialize file upload
                 initializeFileUpload();
-                
+
                 // Test server connection
                 testServer();
-                
+
                 console.log('Application initialized successfully');
             } catch (error) {
                 console.error('Error initializing application:', error);
@@ -121,6 +159,88 @@
             }
         }
         
+        // Initialize authentication and project management
+        function initializeAuth() {
+            const signupForm = document.getElementById('signup-form');
+            const loginForm = document.getElementById('login-form');
+            const authStatus = document.getElementById('auth-status');
+            const projectSection = document.getElementById('project-section');
+            const projectSelect = document.getElementById('project-select');
+            const createProjectBtn = document.getElementById('create-project');
+            const newProjectName = document.getElementById('new-project-name');
+
+            async function loadProjects() {
+                try {
+                    const res = await axios.get('/projects');
+                    projectSelect.innerHTML = '';
+                    res.data.projects.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.id;
+                        opt.textContent = p.name;
+                        projectSelect.appendChild(opt);
+                    });
+                    projectSection.classList.remove('hidden');
+                } catch (err) {
+                    console.error('Error loading projects', err);
+                }
+            }
+
+            if (signupForm) {
+                signupForm.addEventListener('submit', async e => {
+                    e.preventDefault();
+                    try {
+                        await axios.post('/signup', {
+                            username: document.getElementById('signup-username').value,
+                            password: document.getElementById('signup-password').value
+                        });
+                        authStatus.textContent = 'Signup successful';
+                        authStatus.className = 'text-green-600 text-sm';
+                    } catch (err) {
+                        authStatus.textContent = 'Signup error: ' + (err.response?.data?.detail || err.message);
+                        authStatus.className = 'text-red-600 text-sm';
+                    }
+                });
+            }
+
+            if (loginForm) {
+                loginForm.addEventListener('submit', async e => {
+                    e.preventDefault();
+                    try {
+                        const res = await axios.post('/login', {
+                            username: document.getElementById('login-username').value,
+                            password: document.getElementById('login-password').value
+                        });
+                        localStorage.setItem('authToken', res.data.token);
+                        authStatus.textContent = 'Logged in';
+                        authStatus.className = 'text-green-600 text-sm';
+                        loadProjects();
+                    } catch (err) {
+                        authStatus.textContent = 'Login error: ' + (err.response?.data?.detail || err.message);
+                        authStatus.className = 'text-red-600 text-sm';
+                    }
+                });
+            }
+
+            if (createProjectBtn) {
+                createProjectBtn.addEventListener('click', async e => {
+                    e.preventDefault();
+                    try {
+                        const name = newProjectName.value.trim();
+                        if (!name) return;
+                        await axios.post('/projects', { name });
+                        newProjectName.value = '';
+                        loadProjects();
+                    } catch (err) {
+                        console.error('Project creation error', err);
+                    }
+                });
+            }
+
+            if (localStorage.getItem('authToken')) {
+                loadProjects();
+            }
+        }
+
         // Initialize file upload handlers
         function initializeFileUpload() {
             // Get all the required DOM elements
@@ -201,6 +321,10 @@
                 try {
                     const formData = new FormData();
                     formData.append('file', file);
+                    const projectSelect = document.getElementById('project-select');
+                    if (projectSelect) {
+                        formData.append('project_id', projectSelect.value);
+                    }
 
                     if (uploadStatus) uploadStatus.textContent = 'Processing file...';
 

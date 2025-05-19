@@ -40,6 +40,9 @@
                     <li class="nav-item">
                         <a class="nav-link active" href="/advanced">Advanced Analysis</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/docs">API Docs</a>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -93,10 +96,12 @@
                     loading.style.display = 'block';
                     errorMessage.style.display = 'none';
 
+                    const authToken = localStorage.getItem('authToken');
                     const response = await fetch('/analyse/advanced', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'Authorization': authToken ? `Bearer ${authToken}` : ''
                         },
                         body: JSON.stringify({})
                     });
