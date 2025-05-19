@@ -61,6 +61,48 @@
                 </ol>
                 <p class="text-gray-700 mt-2">Detected onset date: <span id="detected-date">Loading...</span></p>
             </div>
+
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Time-Varying Cross-Correlation Peaks</h2>
+                <img src="/analysis_outputs/tvccf_peaks.png" alt="Time-varying CCF peaks" class="mx-auto border rounded shadow" style="max-height: 400px;">
+                <p class="text-gray-700 mt-2">This plot tracks the lag with the highest absolute cross-correlation in a sliding window. A jump in the peak value—or a shift away from lag&nbsp;0—suggests rainfall starts influencing movement with a delay.</p>
+            </div>
+
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Sliding-Window Granger Causality</h2>
+                <img src="/analysis_outputs/granger_causality.png" alt="Granger causality" class="mx-auto border rounded shadow" style="max-height: 400px;">
+                <p class="text-gray-700 mt-2">P-values from repeated Granger tests (rainfall→movement) are shown over time. When they first fall below 0.05, rainfall begins to predict future movement.</p>
+            </div>
+
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Correlation Change-Point Detection</h2>
+                <img src="/analysis_outputs/correlation_change_points.png" alt="Correlation change points" class="mx-auto border rounded shadow" style="max-height: 400px;">
+                <p class="text-gray-700 mt-2">Daily correlations are fed to a change-point algorithm. The red line marks when the correlation regime shifts from weak to strong.</p>
+            </div>
+
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Wavelet Coherence Analysis</h2>
+                <img src="/analysis_outputs/wavelet_coherence.png" alt="Wavelet coherence" class="mx-auto border rounded shadow" style="max-height: 400px;">
+                <p class="text-gray-700 mt-2">A time–frequency map reveals when rainfall and movement become coherent. Look for the first bright patch exceeding the significance threshold.</p>
+            </div>
+
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Time-Varying Parameter Regression</h2>
+                <img src="/analysis_outputs/tvp_regression.png" alt="Time-varying regression" class="mx-auto border rounded shadow" style="max-height: 400px;">
+                <p class="text-gray-700 mt-2">The rainfall coefficient from a rolling regression is plotted over time. Sustained positive values indicate rainfall begins contributing to movement.</p>
+            </div>
+
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Mutual Information Sliding Window</h2>
+                <img src="/analysis_outputs/mutual_information.png" alt="Mutual information" class="mx-auto border rounded shadow" style="max-height: 400px;">
+                <p class="text-gray-700 mt-2">Mutual information captures any dependence, even nonlinear. The first window where MI rises above its threshold points to coupling onset.</p>
+            </div>
+
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Hidden Markov Model Regime Detection</h2>
+                <img src="/analysis_outputs/hmm_states.png" alt="HMM regimes" class="mx-auto border rounded shadow" style="max-height: 400px;">
+                <p class="text-gray-700 mt-2">A two-state HMM classifies periods of weak vs strong coupling. The transition into the high-coupling state marks the onset date.</p>
+            </div>
         </div>
     </div>
 
