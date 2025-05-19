@@ -1221,6 +1221,28 @@ async def correlation_summary():
         data = json.load(f)
     return JSONResponse(data)
 
+
+@app.get("/rolling-correlation-data")
+async def rolling_correlation_data():
+    """Return rolling correlation data as JSON."""
+    data_file = ANALYSIS_OUTPUT_DIR / "rolling_correlation.json"
+    if not data_file.exists():
+        raise HTTPException(status_code=404, detail="Rolling correlation data not available")
+    with data_file.open() as f:
+        data = json.load(f)
+    return JSONResponse(data)
+
+
+@app.get("/dynamic-lag-correlation-data")
+async def dynamic_lag_correlation_data():
+    """Return dynamic lag correlation data as JSON."""
+    data_file = ANALYSIS_OUTPUT_DIR / "dynamic_lag_correlation.json"
+    if not data_file.exists():
+        raise HTTPException(status_code=404, detail="Dynamic lag correlation data not available")
+    with data_file.open() as f:
+        data = json.load(f)
+    return JSONResponse(data)
+
 @app.post("/analyse/seasonal")
 async def seasonal_analysis(data: dict):
     """Perform seasonal analysis on the stored data"""
