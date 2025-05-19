@@ -80,12 +80,17 @@ def analyze_movement(series, dates):
         # Convert to monthly averages
         monthly = pd.Series(series.values, index=dates).resample('M').mean()
         
-        # Calculate summer (Jun-Aug) and winter (Dec-Feb) averages
-        summer = monthly[monthly.index.month.isin([6,7,8])].mean()
-        winter = monthly[monthly.index.month.isin([12,1,2])].mean()
+        # Calculate summer (Apr-Sep) and winter (Oct-Mar) averages
+        summer = monthly[monthly.index.month.isin([4,5,6,7,8,9])].mean()
+        winter = monthly[monthly.index.month.isin([10,11,12,1,2,3])].mean()
         
-        # Calculate the seasonal amplitude
+        # Seasonal amplitude
         amplitude = abs(summer - winter)
+
+        # Movement should be larger in summer and close to zero in winter
+        winter_near_zero = abs(winter) < 0.2
+        is_consistent = abs(summer) > abs(winter)
+        has_seasonal = amplitude > 0.2 and winter_near_zero and is_consistent
         
         # Calculate trend using linear regression
         x = np.arange(len(series))
@@ -98,17 +103,14 @@ def analyze_movement(series, dates):
         ss_res = np.sum((series - trend_line) ** 2)
         r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0.0
         
-        # Calculate seasonal strength
+        # Seasonal strength
         seasonal_strength = amplitude / (np.std(series) if np.std(series) > 0 else 1)
-        
-        # Determine if the pattern is consistent (summer opening, winter closing)
-        is_consistent = (summer > winter) if series.mean() > 0 else (summer < winter)
         
         # Determine if the movement is progressive
         is_progressive = abs(slope) > 0.1 and r_squared > 0.3
         
         # Determine if the movement is primarily seasonal
-        is_seasonal = seasonal_strength > 0.3 and amplitude > 0.1
+        is_seasonal = has_seasonal and seasonal_strength > 0.3
         
         # Convert all values to float and handle NaN/Inf
         def safe_float(value):
@@ -1075,12 +1077,11 @@ async def seasonal_analysis(data: dict):
         time_col = mapping.get('time')
         x_col = mapping.get('x')
         y_col = mapping.get('y')
-        t_col = mapping.get('t')
         
         if not time_col:
             raise HTTPException(status_code=400, detail="No time column mapped. Please perform basic analysis first.")
         
-        if not any([x_col, y_col, t_col]):
+        if not any([x_col, y_col]):
             raise HTTPException(status_code=400, detail="No data columns mapped. Please perform basic analysis first.")
         
         # Convert time column to datetime if it exists
@@ -1093,7 +1094,7 @@ async def seasonal_analysis(data: dict):
         
         # Perform seasonal analysis for each mapped column
         results = {}
-        for col_name, col in [('X', x_col), ('Y', y_col), ('T', t_col)]:
+        for col_name, col in [('X', x_col), ('Y', y_col)]:
             if col:
                 try:
                     if col not in df.columns:

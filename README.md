@@ -6,7 +6,7 @@ A web application for analyzing and visualizing structural movement data, includ
 
 - Upload and process Excel/CSV files containing structural movement data
 - Interactive visualization of movement patterns
-- Analysis of seasonal patterns and trends
+- Analysis of seasonal patterns and trends (displacement only)
 - Temperature correlation analysis
 - Export capabilities for reports
 
