@@ -16,7 +16,7 @@ import requests
 import stumpy
 from tslearn.metrics import dtw
 import io
-from typing import Optional, List
+from typing import Optional, List, Dict
 import hashlib
 import secrets
 import aiohttp
@@ -721,8 +721,83 @@ def seasonal_decompose(data, period=30):
     # Create a named tuple to mimic statsmodels decomposition
     from collections import namedtuple
     Decomposition = namedtuple('Decomposition', ['trend', 'seasonal', 'resid'])
-    
+
     return Decomposition(trend=trend, seasonal=seasonal, resid=residual)
+
+# --- Advanced analysis helpers ---
+def thermal_compensate(values: pd.Series, temperature: Optional[pd.Series], time_index: np.ndarray) -> pd.Series:
+    """Remove ambient temperature effect using linear regression."""
+    try:
+        y = values.astype(float).values
+        if temperature is not None:
+            X = np.column_stack([np.ones(len(y)), temperature.astype(float).values, time_index])
+        else:
+            X = np.column_stack([np.ones(len(y)), time_index])
+        beta, *_ = np.linalg.lstsq(X, y, rcond=None)
+        baseline = beta[0]
+        if temperature is not None:
+            baseline += beta[1] * temperature.astype(float).values
+        residual = y - baseline
+        return pd.Series(residual, index=values.index)
+    except Exception as e:
+        logger.error(f"Thermal compensation failed: {str(e)}")
+        return values
+
+def remove_diurnal_cycle(series: pd.Series, period: int = 24) -> pd.Series:
+    """Remove daily cycle using STL decomposition if available."""
+    try:
+        from statsmodels.tsa.seasonal import STL
+        stl = STL(series, period=period, robust=True)
+        return pd.Series(stl.fit().resid, index=series.index)
+    except Exception as e:
+        logger.warning(f"STL decomposition failed: {e}, using moving average")
+        return series - series.rolling(window=period, center=True).mean()
+
+def detect_cusum(series: pd.Series, threshold: float = 5.0) -> List[int]:
+    """Simple CUSUM change point detection."""
+    try:
+        mean = series.mean()
+        csum = np.cumsum(series - mean)
+        idx = np.where(np.abs(csum) > threshold * series.std())[0]
+        return idx.tolist()
+    except Exception as e:
+        logger.error(f"CUSUM detection failed: {e}")
+        return []
+
+def rolling_slopes(series: pd.Series, window: int = 30) -> List[float]:
+    """Rolling window slope estimation."""
+    slopes = []
+    if len(series) < window:
+        return slopes
+    x = np.arange(window)
+    for i in range(len(series) - window + 1):
+        y = series.iloc[i : i + window].values
+        try:
+            slope = np.polyfit(x, y, 1)[0]
+        except Exception:
+            slope = 0.0
+        slopes.append(float(slope))
+    return slopes
+
+def detect_anomalies(series: pd.Series, z_thresh: float = 3.0) -> List[int]:
+    """Return indices of points with z-score greater than threshold."""
+    try:
+        z = ((series - series.mean()) / series.std()).abs()
+        return z[z > z_thresh].index.tolist()
+    except Exception as e:
+        logger.error(f"Anomaly detection failed: {e}")
+        return []
+
+def frequency_spectrum(series: pd.Series) -> Dict[str, List[float]]:
+    """Compute FFT spectrum."""
+    try:
+        n = len(series)
+        freq = np.fft.rfftfreq(n, d=1)
+        spectrum = np.abs(np.fft.rfft(series))
+        return {"frequency": freq.tolist(), "amplitude": spectrum.tolist()}
+    except Exception as e:
+        logger.error(f"FFT failed: {e}")
+        return {"frequency": [], "amplitude": []}
 
 @app.post("/debug-timeseries")
 async def debug_timeseries_analysis(series: list):
@@ -1184,8 +1259,13 @@ async def advanced_analysis(data: dict):
             logger.error(f"Error converting time column to datetime: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error converting time column to datetime: {str(e)}")
         
+        # Prepare a numeric time index for regression
+        df = df.sort_values(time_col)
+        df.reset_index(drop=True, inplace=True)
+        time_idx = np.arange(len(df))
+
         # Perform advanced analysis
-        results = {}
+        results: Dict[str, Dict[str, Any]] = {}
         for col_name, col in [('X', x_col), ('Y', y_col), ('T', t_col)]:
             if col:
                 try:
@@ -1193,26 +1273,38 @@ async def advanced_analysis(data: dict):
                         logger.error(f"Column {col} not found in DataFrame")
                         results[col_name] = {"error": f"Column {col} not found in data"}
                         continue
-                        
+
                     series = df[col]
-                    
+
                     # Check for valid data
                     if series.isna().all():
                         logger.error(f"Column {col} contains only NaN values")
                         results[col_name] = {"error": f"Column {col} contains only NaN values"}
                         continue
-                    
-                    # Perform analysis
-                    pattern_type = classify_pattern(series.values)
-                    pattern_confidence = calculate_pattern_confidence(series)
-                    pattern_frequency = calculate_pattern_frequency(series)
-                    pattern_duration = calculate_pattern_duration(series)
-                    
+
+                    temp_series = df[t_col] if t_col and t_col in df.columns else None
+
+                    # Thermal compensation and detrending
+                    resid = thermal_compensate(series, temp_series, time_idx)
+                    resid = remove_diurnal_cycle(resid)
+
+                    # Change point detection
+                    change_points = detect_cusum(resid)
+
+                    # Progressive movement
+                    drift = rolling_slopes(resid)
+
+                    # Anomaly detection
+                    anomalies = detect_anomalies(resid)
+
+                    # Frequency analysis
+                    spectrum = frequency_spectrum(resid)
+
                     results[col_name] = {
-                        "pattern_type": pattern_type,
-                        "pattern_confidence": pattern_confidence,
-                        "pattern_frequency": pattern_frequency,
-                        "pattern_duration": pattern_duration
+                        "change_points": change_points,
+                        "drift_rate": drift,
+                        "anomalies": anomalies,
+                        "spectrum": spectrum,
                     }
                     logger.debug(f"Advanced analysis for {col_name} ({col}): {results[col_name]}")
                 except Exception as e:
