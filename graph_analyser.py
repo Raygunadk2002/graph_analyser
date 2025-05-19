@@ -175,22 +175,24 @@ def analyze_trend(series):
     return "progressive", classify_strength(slope/s.std())
 
 def analyze_seasonal_pattern(series, dates):
-    """Analyze if the movement shows a clear seasonal pattern (summer opening, winter closing)"""
+    """Assess if movement moves away from 0 in summer and back towards 0 in winter."""
     # Convert to monthly averages
     monthly = pd.Series(series.values, index=dates).resample('M').mean()
-    
-    # Calculate summer (Jun-Aug) and winter (Dec-Feb) averages
-    summer = monthly[monthly.index.month.isin([6,7,8])].mean()
-    winter = monthly[monthly.index.month.isin([12,1,2])].mean()
-    
-    # Calculate the seasonal amplitude
+
+    # Summer: April to September, Winter: October to March
+    summer = monthly[monthly.index.month.isin([4,5,6,7,8,9])].mean()
+    winter = monthly[monthly.index.month.isin([10,11,12,1,2,3])].mean()
+
+    # Seasonal amplitude
     amplitude = abs(summer - winter)
-    
-    # Check if the pattern is consistent (summer opening, winter closing)
-    is_consistent = (summer > winter) if series.mean() > 0 else (summer < winter)
-    
+
+    # Movement should be larger in summer and near zero in winter
+    winter_near_zero = abs(winter) < 0.2
+    is_consistent = abs(summer) > abs(winter)
+    has_seasonal = amplitude > 0.2 and winter_near_zero and is_consistent
+
     return {
-        'has_seasonal': amplitude > 0.3,  # Threshold for significant seasonal movement
+        'has_seasonal': has_seasonal,
         'amplitude': amplitude,
         'is_consistent': is_consistent,
         'summer_avg': summer,
