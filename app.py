@@ -188,6 +188,34 @@ async def create_project(request: Request, data: dict):
     project_id = db.create_project(user_id, name)
     return {"project_id": project_id}
 
+@app.get("/projects/{project_id}/files")
+async def list_project_files(request: Request, project_id: int):
+    """List files associated with a project."""
+    user_id = get_user_id_from_request(request)
+    # verify project belongs to user
+    projects = db.get_projects(user_id)
+    if not any(p["id"] == project_id for p in projects):
+        raise HTTPException(status_code=404, detail="Project not found")
+    files = db.get_project_files(project_id)
+    return {"files": files}
+
+@app.get("/files/{file_id}/latest-analysis")
+async def get_latest_file_analysis(request: Request, file_id: int):
+    """Return the latest column mapping for a file."""
+    user_id = get_user_id_from_request(request)
+    info = db.get_file_info(file_id)
+    if not info:
+        raise HTTPException(status_code=404, detail="File not found")
+    project_id = info.get("project_id")
+    if project_id:
+        projects = db.get_projects(user_id)
+        if not any(p["id"] == project_id for p in projects):
+            raise HTTPException(status_code=403, detail="Access denied")
+    latest = db.get_latest_analysis(file_id)
+    if not latest:
+        raise HTTPException(status_code=404, detail="No analysis found for file")
+    return latest
+
 @app.get("/", response_class=HTMLResponse)
 async def signup_page(request: Request):
     """Serve the signup page"""

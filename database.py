@@ -342,6 +342,35 @@ class Database:
         cursor.execute("SELECT id, name FROM projects WHERE user_id = ?", (user_id,))
         rows = cursor.fetchall()
         return [{"id": row[0], "name": row[1]} for row in rows]
+
+    def get_project_files(self, project_id: int) -> List[Dict[str, Any]]:
+        """Return files associated with a project."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT id, filename, upload_time FROM files WHERE project_id = ?",
+            (project_id,),
+        )
+        rows = cursor.fetchall()
+        return [
+            {
+                "id": row[0],
+                "filename": row[1],
+                "upload_time": row[2],
+            }
+            for row in rows
+        ]
+
+    def get_file_info(self, file_id: int) -> Optional[Dict[str, Any]]:
+        """Get basic information about a file."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT id, filename, project_id FROM files WHERE id = ?",
+            (file_id,),
+        )
+        row = cursor.fetchone()
+        if row:
+            return {"id": row[0], "filename": row[1], "project_id": row[2]}
+        return None
     
     def close(self):
         """Close the database connection."""
