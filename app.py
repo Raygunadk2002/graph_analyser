@@ -21,7 +21,6 @@ import hashlib
 import secrets
 import aiohttp
 from pydantic import BaseModel
-from data_loader import data_loader
 from database import db
 import traceback
 
@@ -1002,26 +1001,29 @@ async def analyse_file_with_mapping(
 @app.get("/seasonal")
 async def seasonal_page(request: Request):
     """Serve the seasonal analysis page"""
-    if data_loader.get_dataframe() is None:
-        raise HTTPException(status_code=400, detail="No file data available. Please upload a file first.")
     return templates.TemplateResponse("seasonal_analysis.html", {"request": request})
 
 @app.get("/advanced")
 async def advanced_page(request: Request):
     """Serve the advanced analysis page"""
-    if data_loader.get_dataframe() is None:
-        raise HTTPException(status_code=400, detail="No file data available. Please upload a file first.")
     return templates.TemplateResponse("advanced_analysis.html", {"request": request})
 
 @app.post("/analyse/seasonal")
 async def seasonal_analysis(data: dict):
     """Perform seasonal analysis on the stored data"""
     try:
-        if data_loader.get_dataframe() is None:
-            raise HTTPException(status_code=400, detail="No file data available. Please upload a file first.")
-        
-        df = data_loader.get_dataframe()
-        mapping = data_loader.get_mapping()
+        file_id = data.get("file_id")
+        if not file_id:
+            raise HTTPException(status_code=400, detail="file_id required")
+
+        df = db.get_file_data(file_id)
+        if df is None:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        latest = db.get_latest_analysis(file_id)
+        if not latest:
+            raise HTTPException(status_code=400, detail="No analysis mapping available. Please perform basic analysis first.")
+        mapping = latest["mapping"]
         
         if mapping is None:
             raise HTTPException(status_code=400, detail="No column mapping available. Please perform basic analysis first.")
@@ -1088,11 +1090,18 @@ async def seasonal_analysis(data: dict):
 async def advanced_analysis(data: dict):
     """Perform advanced analysis on the stored data"""
     try:
-        if data_loader.get_dataframe() is None:
-            raise HTTPException(status_code=400, detail="No file data available. Please upload a file first.")
-        
-        df = data_loader.get_dataframe()
-        mapping = data_loader.get_mapping()
+        file_id = data.get("file_id")
+        if not file_id:
+            raise HTTPException(status_code=400, detail="file_id required")
+
+        df = db.get_file_data(file_id)
+        if df is None:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        latest = db.get_latest_analysis(file_id)
+        if not latest:
+            raise HTTPException(status_code=400, detail="No analysis mapping available. Please perform basic analysis first.")
+        mapping = latest["mapping"]
         
         if mapping is None:
             raise HTTPException(status_code=400, detail="No column mapping available. Please perform basic analysis first.")
