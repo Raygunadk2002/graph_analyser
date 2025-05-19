@@ -23,6 +23,7 @@ import aiohttp
 from pydantic import BaseModel
 from database import db
 import traceback
+from analysis import analyze_movement_rain_temp
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -1367,5 +1368,6 @@ def calculate_correlation_matrix(df):
     return [[1.0, 0.5], [0.5, 1.0]]
 
 if __name__ == "__main__":
+    analyze_movement_rain_temp()
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
