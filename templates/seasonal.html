@@ -57,6 +57,40 @@
             <p class="mt-2">Analyzing data...</p>
         </div>
 
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <form id="signup-form" class="d-flex mb-2">
+                    <input type="text" id="signup-username" class="form-control me-2" placeholder="Username">
+                    <input type="password" id="signup-password" class="form-control me-2" placeholder="Password">
+                    <button class="btn btn-secondary" type="submit">Sign Up</button>
+                </form>
+                <form id="login-form" class="d-flex mb-2">
+                    <input type="text" id="login-username" class="form-control me-2" placeholder="Username">
+                    <input type="password" id="login-password" class="form-control me-2" placeholder="Password">
+                    <button class="btn btn-primary" type="submit">Login</button>
+                </form>
+                <div id="auth-status" class="small"></div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Select Project</label>
+                <select id="project-select" class="form-select mb-2"></select>
+                <div class="d-flex">
+                    <input type="text" id="new-project-name" class="form-control me-2" placeholder="New project name">
+                    <button id="create-project" class="btn btn-success">Create</button>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <input type="file" id="file-input" class="form-control mb-2" accept=".csv,.xlsx,.xls">
+                <div id="upload-status" class="small text-center"></div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-12">
+                <div id="basicGraph"></div>
+            </div>
+        </div>
+
         <div class="row">
             <div class="col-12">
                 <h2>Seasonal Analysis</h2>
@@ -87,48 +121,186 @@
             const loading = document.getElementById('loading');
             const errorMessage = document.getElementById('errorMessage');
             const analysisResults = document.getElementById('analysisResults');
+            const authStatus = document.getElementById('auth-status');
+            const signupForm = document.getElementById('signup-form');
+            const loginForm = document.getElementById('login-form');
+            const projectSelect = document.getElementById('project-select');
+            const createProjectBtn = document.getElementById('create-project');
+            const newProjectName = document.getElementById('new-project-name');
+            const fileInput = document.getElementById('file-input');
+            const uploadStatus = document.getElementById('upload-status');
+            const basicGraph = document.getElementById('basicGraph');
+            let currentFileId = null;
 
-            async function performSeasonalAnalysis() {
-                try {
-                    loading.style.display = 'block';
-                    errorMessage.style.display = 'none';
-                    analysisResults.innerHTML = '';
+            async function loadProjects() {
+                const token = localStorage.getItem('authToken');
+                if (!token) return;
+                const res = await fetch('/projects', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!res.ok) return;
+                const data = await res.json();
+                projectSelect.innerHTML = '';
+                data.projects.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name;
+                    projectSelect.appendChild(opt);
+                });
+            }
 
-                    const authToken = localStorage.getItem('authToken');
-                    const response = await fetch('/analyse/seasonal', {
+            if (signupForm) {
+                signupForm.addEventListener('submit', async e => {
+                    e.preventDefault();
+                    const res = await fetch('/signup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: document.getElementById('signup-username').value,
+                            password: document.getElementById('signup-password').value
+                        })
+                    });
+                    authStatus.textContent = res.ok ? 'Signup successful' : 'Signup failed';
+                });
+            }
+
+            if (loginForm) {
+                loginForm.addEventListener('submit', async e => {
+                    e.preventDefault();
+                    const res = await fetch('/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: document.getElementById('login-username').value,
+                            password: document.getElementById('login-password').value
+                        })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        localStorage.setItem('authToken', data.token);
+                        authStatus.textContent = 'Logged in';
+                        loadProjects();
+                    } else {
+                        authStatus.textContent = 'Login failed';
+                    }
+                });
+            }
+
+            if (createProjectBtn) {
+                createProjectBtn.addEventListener('click', async e => {
+                    e.preventDefault();
+                    const token = localStorage.getItem('authToken');
+                    if (!token) return;
+                    const name = newProjectName.value.trim();
+                    if (!name) return;
+                    await fetch('/projects', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': authToken ? `Bearer ${authToken}` : ''
+                            'Authorization': `Bearer ${token}`
                         },
-                        body: JSON.stringify({})
+                        body: JSON.stringify({ name })
                     });
+                    newProjectName.value = '';
+                    loadProjects();
+                });
+            }
 
-                    if (!response.ok) {
-                        const error = await response.json();
-                        throw new Error(error.detail || 'Failed to perform seasonal analysis');
-                    }
-
-                    const results = await response.json();
-                    
-                    // Check if any results have errors
-                    const hasErrors = Object.values(results).some(result => result.error);
-                    if (hasErrors) {
-                        const errorAxes = Object.entries(results)
-                            .filter(([_, result]) => result.error)
-                            .map(([axis, result]) => `${axis} axis: ${result.error}`)
-                            .join('\n');
-                        throw new Error(`Analysis errors:\n${errorAxes}`);
-                    }
-                    
-                    displayResults(results);
-                } catch (error) {
-                    errorMessage.textContent = error.message;
-                    errorMessage.style.display = 'block';
-                    analysisResults.innerHTML = '';
-                } finally {
-                    loading.style.display = 'none';
+            async function uploadAndAnalyse() {
+                const token = localStorage.getItem('authToken');
+                if (!token) {
+                    uploadStatus.textContent = 'Please login first';
+                    return;
                 }
+                const file = fileInput.files[0];
+                if (!file) return;
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('project_id', projectSelect.value);
+                uploadStatus.textContent = 'Uploading...';
+                const res = await fetch('/upload', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                if (!res.ok) {
+                    uploadStatus.textContent = 'Upload failed';
+                    return;
+                }
+                const data = await res.json();
+                currentFileId = data.data.file_id;
+                uploadStatus.textContent = 'File uploaded';
+
+                await runBasicAnalysis(data.data.mapped_columns);
+                await performSeasonalAnalysis();
+            }
+
+            async function runBasicAnalysis(mapping) {
+                const token = localStorage.getItem('authToken');
+                const form = new FormData();
+                form.append('mapping', JSON.stringify(mapping));
+                form.append('file_id', currentFileId);
+                const res = await fetch('/analyse', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: form
+                });
+                if (!res.ok) return;
+                const result = await res.json();
+                updateGraph(result.data.plot_data);
+            }
+
+            async function performSeasonalAnalysis() {
+                if (!currentFileId) return;
+                loading.style.display = 'block';
+                errorMessage.style.display = 'none';
+                const response = await fetch('/analyse/seasonal', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                    },
+                    body: JSON.stringify({ file_id: currentFileId })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    errorMessage.textContent = error.detail || 'Failed to perform seasonal analysis';
+                    errorMessage.style.display = 'block';
+                    loading.style.display = 'none';
+                    return;
+                }
+
+                const results = await response.json();
+
+                const hasErrors = Object.values(results).some(result => result.error);
+                if (hasErrors) {
+                    const errorAxes = Object.entries(results)
+                        .filter(([_, result]) => result.error)
+                        .map(([axis, result]) => `${axis} axis: ${result.error}`)
+                        .join('\n');
+                    errorMessage.textContent = `Analysis errors:\n${errorAxes}`;
+                    errorMessage.style.display = 'block';
+                    loading.style.display = 'none';
+                    return;
+                }
+
+                displayResults(results);
+                loading.style.display = 'none';
+            }
+
+            function updateGraph(data) {
+                const traces = [];
+                Object.entries(data).forEach(([key, val]) => {
+                    traces.push({ x: val.time, y: val.values, mode: 'lines', type: 'scatter', name: key });
+                });
+                Plotly.newPlot(basicGraph, traces, { title: 'Sensor Data' });
+            }
+
+            if (fileInput) {
+                fileInput.addEventListener('change', uploadAndAnalyse);
+            }
+
+            if (localStorage.getItem('authToken')) {
+                loadProjects();
             }
 
             function displayResults(results) {
