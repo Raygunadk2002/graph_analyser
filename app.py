@@ -1039,12 +1039,12 @@ async def analyse_file_with_mapping(
 @app.get("/seasonal")
 async def seasonal_page(request: Request):
     """Serve the seasonal analysis page"""
-    return templates.TemplateResponse("seasonal_analysis.html", {"request": request})
+    return templates.TemplateResponse("seasonal.html", {"request": request})
 
 @app.get("/advanced")
 async def advanced_page(request: Request):
     """Serve the advanced analysis page"""
-    return templates.TemplateResponse("advanced_analysis.html", {"request": request})
+    return templates.TemplateResponse("advanced.html", {"request": request})
 
 @app.post("/analyse/seasonal")
 async def seasonal_analysis(data: dict):
