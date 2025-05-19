@@ -37,6 +37,8 @@
         <div id="project-section" class="mb-6 hidden">
             <label class="block text-gray-700 font-medium mb-2">Select Project</label>
             <select id="project-select" class="border rounded px-2 py-1 mb-2"></select>
+            <label class="block text-gray-700 font-medium mb-2">Select File</label>
+            <select id="file-select" class="border rounded px-2 py-1 mb-2"></select>
             <div class="flex space-x-2">
                 <input type="text" id="new-project-name" class="border px-2 py-1" placeholder="New project name">
                 <button id="create-project" class="bg-blue-600 text-white px-3 py-1 rounded">Create</button>
@@ -169,8 +171,10 @@
             const authStatus = document.getElementById('auth-status');
             const projectSection = document.getElementById('project-section');
             const projectSelect = document.getElementById('project-select');
+            const fileSelect = document.getElementById('file-select');
             const createProjectBtn = document.getElementById('create-project');
             const newProjectName = document.getElementById('new-project-name');
+            let currentFileId = null;
 
             async function loadProjects() {
                 try {
@@ -187,12 +191,50 @@
                         projectSelect.value = saved;
                     }
                     projectSection.classList.remove('hidden');
+                    if (res.data.projects.length > 0) {
+                        await loadFiles();
+                    }
                 } catch (err) {
                     console.error('Error loading projects', err);
                     if (err.response && err.response.status === 401) {
                         localStorage.removeItem('authToken');
                         window.location.href = '/login';
                     }
+                }
+            }
+
+            async function loadFiles() {
+                try {
+                    const pid = projectSelect.value;
+                    if (!pid) return;
+                    const res = await axios.get(`/projects/${pid}/files`);
+                    fileSelect.innerHTML = '';
+                    res.data.files.forEach(f => {
+                        const opt = document.createElement('option');
+                        opt.value = f.id;
+                        opt.textContent = f.filename;
+                        fileSelect.appendChild(opt);
+                    });
+                    if (res.data.files.length > 0) {
+                        fileSelect.value = res.data.files[0].id;
+                        currentFileId = res.data.files[0].id;
+                        await loadExistingAnalysis();
+                    }
+                } catch (err) {
+                    console.error('Error loading files', err);
+                }
+            }
+
+            async function loadExistingAnalysis() {
+                if (!currentFileId) return;
+                try {
+                    const res = await axios.get(`/files/${currentFileId}/latest-analysis`);
+                    const data = res.data;
+                    if (data && data.mapping) {
+                        await runBasicAnalysis(data.mapping);
+                    }
+                } catch (err) {
+                    console.error('Error loading analysis', err);
                 }
             }
 
@@ -244,6 +286,20 @@
                     } catch (err) {
                         console.error('Project creation error', err);
                     }
+                });
+            }
+
+            if (projectSelect) {
+                projectSelect.addEventListener('change', () => {
+                    localStorage.setItem('selectedProjectId', projectSelect.value);
+                    loadFiles();
+                });
+            }
+
+            if (fileSelect) {
+                fileSelect.addEventListener('change', () => {
+                    currentFileId = fileSelect.value;
+                    loadExistingAnalysis();
                 });
             }
 
@@ -384,6 +440,7 @@
                             uploadStatus.className = 'text-center mt-2 text-green-600';
                         }
                         window.uploadedData = response.data.data;
+                        currentFileId = window.uploadedData.file_id;
                         try {
                             localStorage.setItem('uploadedData', JSON.stringify(window.uploadedData));
                         } catch (storageError) {
@@ -419,6 +476,7 @@
                         
                         // Update UI state
                         updateUI();
+                        await loadFiles();
                     } else {
                         throw new Error(response.data.detail || 'Unexpected response format');
                     }
@@ -625,6 +683,21 @@
                     // Enable inputs on error
                     if (postcodeInput) postcodeInput.disabled = false;
                     if (fetchRainfallBtn) fetchRainfallBtn.disabled = false;
+                }
+            }
+
+            async function runBasicAnalysis(mapping) {
+                if (!currentFileId) return;
+                window.columnMapping = mapping;
+                window.uploadedData = { file_id: currentFileId };
+                await handleAnalyze();
+                if (window.uploadedData) {
+                    window.detectedColumns = window.uploadedData.columns || [];
+                    showColumnMapping();
+                    Object.entries(mapping).forEach(([k, v]) => {
+                        const sel = document.getElementById(`mapping-${k}`);
+                        if (sel) sel.value = v;
+                    });
                 }
             }
             
