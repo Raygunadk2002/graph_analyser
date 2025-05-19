@@ -41,7 +41,13 @@
                         <a class="nav-link" href="/advanced">Advanced Analysis</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="/profile">Profile</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="/docs">API Docs</a>
+                    </li>
+                    <li class="nav-item">
+                        <button id="logout-btn" class="nav-link bg-transparent border-0">Logout</button>
                     </li>
                 </ul>
             </div>
@@ -126,7 +132,7 @@
             const authStatus = document.getElementById('auth-status');
             const signupForm = document.getElementById('signup-form');
             const loginForm = document.getElementById('login-form');
-           const projectSelect = document.getElementById('project-select');
+            const projectSelect = document.getElementById('project-select');
             const fileSelect = document.getElementById('file-select');
             const createProjectBtn = document.getElementById('create-project');
             const newProjectName = document.getElementById('new-project-name');
@@ -134,6 +140,14 @@
             const uploadStatus = document.getElementById('upload-status');
             const basicGraph = document.getElementById('basicGraph');
             let currentFileId = null;
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', () => {
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('selectedProjectId');
+                    window.location.href = '/login';
+                });
+            }
 
             async function loadProjects() {
                 const token = localStorage.getItem('authToken');
@@ -148,6 +162,10 @@
                     opt.textContent = p.name;
                     projectSelect.appendChild(opt);
                 });
+                const saved = localStorage.getItem('selectedProjectId');
+                if (saved) {
+                    projectSelect.value = saved;
+                }
                 if (data.projects.length > 0) {
                     await loadFiles();
                 }
@@ -338,7 +356,10 @@
             }
 
             if (projectSelect) {
-                projectSelect.addEventListener('change', loadFiles);
+                projectSelect.addEventListener('change', () => {
+                    localStorage.setItem('selectedProjectId', projectSelect.value);
+                    loadFiles();
+                });
             }
 
             if (fileSelect) {

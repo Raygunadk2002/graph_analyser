@@ -231,6 +231,11 @@ async def dashboard_page(request: Request):
     """Serve the main dashboard page"""
     return templates.TemplateResponse("index.html", {"request": request})
 
+@app.get("/profile", response_class=HTMLResponse)
+async def profile_page(request: Request):
+    """Serve the user profile page"""
+    return templates.TemplateResponse("profile.html", {"request": request})
+
 @app.get("/test")
 async def test_endpoint():
     """Test endpoint to verify server is working"""

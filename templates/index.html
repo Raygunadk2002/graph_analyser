@@ -20,7 +20,9 @@
                     <a href="/dashboard" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Basic Analysis</a>
                     <a href="/seasonal" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Seasonal Analysis</a>
                     <a href="/advanced" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Advanced Analysis</a>
+                    <a href="/profile" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Profile</a>
                     <a href="/docs" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">API Docs</a>
+                    <button id="logout-btn" class="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Logout</button>
                 </div>
             </div>
         </div>
@@ -143,6 +145,15 @@
                 // Test server connection
                 testServer();
 
+                const logoutBtn = document.getElementById('logout-btn');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', () => {
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('selectedProjectId');
+                        window.location.href = '/login';
+                    });
+                }
+
                 console.log('Application initialized successfully');
             } catch (error) {
                 console.error('Error initializing application:', error);
@@ -170,6 +181,10 @@
                         opt.textContent = p.name;
                         projectSelect.appendChild(opt);
                     });
+                    const saved = localStorage.getItem('selectedProjectId');
+                    if (saved) {
+                        projectSelect.value = saved;
+                    }
                     projectSection.classList.remove('hidden');
                 } catch (err) {
                     console.error('Error loading projects', err);
