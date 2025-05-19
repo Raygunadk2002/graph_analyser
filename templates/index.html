@@ -222,9 +222,25 @@
                         fileSelect.appendChild(opt);
                     });
                     if (res.data.files.length > 0) {
-                        fileSelect.value = res.data.files[0].id;
-                        currentFileId = res.data.files[0].id;
-                        await loadExistingAnalysis();
+                        let selected = null;
+                        for (const f of res.data.files) {
+                            try {
+                                const ares = await axios.get(`/files/${f.id}/latest-analysis`);
+                                if (ares.data && ares.data.mapping) {
+                                    selected = f.id;
+                                    fileSelect.value = f.id;
+                                    currentFileId = f.id;
+                                    await runBasicAnalysis(ares.data.mapping);
+                                    break;
+                                }
+                            } catch (e) {
+                                // try next file if this one has no analysis yet
+                            }
+                        }
+                        if (!selected) {
+                            fileSelect.value = res.data.files[0].id;
+                            currentFileId = res.data.files[0].id;
+                        }
                     }
                 } catch (err) {
                     console.error('Error loading files', err);
@@ -241,6 +257,10 @@
                     }
                 } catch (err) {
                     console.error('Error loading analysis', err);
+                    window.uploadedData = null;
+                    try { localStorage.removeItem('uploadedData'); } catch(e) {}
+                    showColumnMapping();
+                    updateUI();
                 }
             }
 
