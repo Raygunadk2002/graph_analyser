@@ -53,6 +53,10 @@
                 div.className = 'bg-white p-4 shadow rounded flex justify-between items-center';
                 const name = document.createElement('span');
                 name.textContent = p.name;
+
+                const buttonWrapper = document.createElement('div');
+                buttonWrapper.className = 'space-x-2';
+
                 const openBtn = document.createElement('button');
                 openBtn.textContent = 'Open';
                 openBtn.className = 'bg-blue-600 text-white px-3 py-1 rounded';
@@ -60,12 +64,38 @@
                     localStorage.setItem('selectedProjectId', p.id);
                     window.location.href = '/dashboard';
                 });
+
+                const delBtn = document.createElement('button');
+                delBtn.textContent = 'Delete';
+                delBtn.className = 'bg-red-600 text-white px-3 py-1 rounded';
+                delBtn.addEventListener('click', () => deleteProject(p.id));
+
+                buttonWrapper.appendChild(openBtn);
+                buttonWrapper.appendChild(delBtn);
+
                 div.appendChild(name);
-                div.appendChild(openBtn);
+                div.appendChild(buttonWrapper);
                 container.appendChild(div);
             });
         }).catch(err => {
             console.error('Error loading projects', err);
+            if (err.response && err.response.status === 401) {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login';
+            }
+        });
+    }
+
+    function deleteProject(id) {
+        if (!confirm('Are you sure you want to delete this project?')) {
+            return;
+        }
+        axios.delete(`/projects/${id}`, {
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') }
+        }).then(() => {
+            loadProjects();
+        }).catch(err => {
+            console.error('Error deleting project', err);
             if (err.response && err.response.status === 401) {
                 localStorage.removeItem('authToken');
                 window.location.href = '/login';

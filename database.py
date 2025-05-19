@@ -343,6 +343,29 @@ class Database:
         rows = cursor.fetchall()
         return [{"id": row[0], "name": row[1]} for row in rows]
 
+    def delete_project(self, project_id: int) -> None:
+        """Delete a project and all related data."""
+        cursor = self.conn.cursor()
+        # Find files belonging to this project
+        cursor.execute("SELECT id, file_path FROM files WHERE project_id = ?", (project_id,))
+        files = cursor.fetchall()
+        for file_id, file_path in files:
+            # Delete analysis results
+            cursor.execute("SELECT id FROM analysis WHERE file_id = ?", (file_id,))
+            analysis_ids = [row[0] for row in cursor.fetchall()]
+            for a_id in analysis_ids:
+                cursor.execute("DELETE FROM results WHERE analysis_id = ?", (a_id,))
+            cursor.execute("DELETE FROM analysis WHERE file_id = ?", (file_id,))
+            cursor.execute("DELETE FROM files WHERE id = ?", (file_id,))
+            try:
+                path = Path(file_path)
+                if path.exists():
+                    path.unlink()
+            except Exception as e:
+                logger.warning(f"Could not remove file {file_path}: {e}")
+        cursor.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        self.conn.commit()
+
     def get_project_files(self, project_id: int) -> List[Dict[str, Any]]:
         """Return files associated with a project."""
         cursor = self.conn.cursor()
