@@ -827,13 +827,25 @@
                         return;
                     }
                     
-                    // Store the rainfall data
+                    // Convert rainfall values to numbers
+                    const numericValues = values.map(v => {
+                        const num = Number(v);
+                        return isNaN(num) ? 0 : num;
+                    });
+
+                    // Calculate 7-day rolling average rainfall
+                    const rolling7 = numericValues.map((_, idx) => {
+                        const start = Math.max(0, idx - 6);
+                        const slice = numericValues.slice(start, idx + 1);
+                        const sum = slice.reduce((a, b) => a + b, 0);
+                        return sum / slice.length;
+                    });
+
+                    // Store the rainfall data including rolling average
                     window.rainfallData = {
                         dates: dates,
-                        values: values.map(v => {
-                            const num = Number(v);
-                            return isNaN(num) ? 0 : num; // Convert to numbers, use 0 for invalid values
-                        })
+                        values: numericValues,
+                        rolling7: rolling7
                     };
                     
                     if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-green-600">Rainfall data loaded successfully!</span>';
@@ -878,13 +890,24 @@
                     return;
                 }
                 
-                // Create rainfall trace
+                // Create rainfall trace (daily totals)
                 const rainfallTrace = {
                     x: window.rainfallData.dates,
                     y: window.rainfallData.values,
                     type: 'bar',
                     name: 'Rainfall',
                     marker: { color: 'rgba(0, 128, 255, 0.5)' },
+                    yaxis: 'y2'
+                };
+
+                // 7-day rolling average rainfall trace
+                const rainfallAvgTrace = {
+                    x: window.rainfallData.dates,
+                    y: window.rainfallData.rolling7,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Rainfall 7-day Avg',
+                    line: { color: 'rgba(0, 128, 255, 1)', width: 2, dash: 'dash' },
                     yaxis: 'y2'
                 };
                 
@@ -909,6 +932,7 @@
                     allTraces.push(temperatureTrace);
                 }
                 allTraces.push(rainfallTrace);
+                allTraces.push(rainfallAvgTrace);
                 
                 // Create updated layout with dual axes
                 const layout = {
@@ -966,7 +990,7 @@
                 const rainfallDates = window.rainfallData.dates;
                 
                 // Calculate correlation for each sensor
-                let correlationHTML = `<h3 class="text-lg font-semibold mb-2">Rainfall Correlation Results</h3>`;
+                let correlationHTML = `<h3 class="text-lg font-semibold mb-2">Rainfall Correlation Results (7-day Avg)</h3>`;
                 let hasSufficientData = false;
                 
                 for (const sensorName of sensors) {
@@ -993,7 +1017,7 @@
                             const sensorVal = Number(sensorValues[i]);
                             if (!isNaN(sensorVal)) {
                                 matchedData.sensor.push(sensorVal);
-                                matchedData.rainfall.push(window.rainfallData.values[rainfallIdx]);
+                                matchedData.rainfall.push(window.rainfallData.rolling7[rainfallIdx]);
                             }
                         }
                     }
@@ -1040,7 +1064,7 @@
                         <div class="mb-3">
                             <p><strong>${sensorName}:</strong> Correlation coefficient = <span class="${correlationClass}">${correlation.toFixed(4)}</span></p>
                             <p>Interpretation: <span class="${correlationClass}">${correlationText}</span> (${correlation < 0 ? 'negative' : 'positive'})</p>
-                            <p>Based on ${n} matching data points</p>
+                            <p>Based on ${n} matching data points using 7-day average rainfall</p>
                         </div>
                     `;
                     
@@ -1072,7 +1096,7 @@
                     const layout = {
                         title: `${sensorName} vs Rainfall Correlation`,
                         xaxis: {
-                            title: 'Rainfall (mm)'
+                        title: 'Rainfall 7-day Avg (mm)'
                         },
                         yaxis: {
                             title: sensorName
