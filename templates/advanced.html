@@ -25,14 +25,14 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
-            <a class="navbar-brand" href="/">Graph Analyser</a>
+            <a class="navbar-brand" href="/dashboard">Graph Analyser</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link" href="/">Basic Analysis</a>
+                        <a class="nav-link" href="/dashboard">Basic Analysis</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/seasonal">Seasonal Analysis</a>
@@ -87,6 +87,10 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            if (!localStorage.getItem('authToken')) {
+                window.location.href = '/login';
+                return;
+            }
             const loading = document.getElementById('loading');
             const errorMessage = document.getElementById('errorMessage');
             const analysisResults = document.getElementById('analysisResults');

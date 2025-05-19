@@ -190,8 +190,13 @@ async def create_project(request: Request, data: dict):
     return {"project_id": project_id}
 
 @app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    """Serve the main page"""
+async def login_page(request: Request):
+    """Serve the login page"""
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(request: Request):
+    """Serve the main dashboard page"""
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/test")
