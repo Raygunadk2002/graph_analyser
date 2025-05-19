@@ -1,6 +1,7 @@
 import logging
 from typing import List
 from pathlib import Path
+import json
 
 import pandas as pd
 import statsmodels.api as sm
@@ -65,6 +66,20 @@ def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> N
     logger.info("Computing partial correlations...")
     pcorrs = compute_partial_correlations(df)
     logger.info("Partial correlations:\n%s", pcorrs)
+
+    summary = {
+        "regression": {
+            "coefficients": model.params.to_dict(),
+            "p_values": model.pvalues.to_dict(),
+            "r_squared": model.rsquared,
+        },
+        "partial_correlations": {
+            "rainfall_vs_movement_given_temp": pcorrs.iloc[0].to_dict(),
+            "temperature_vs_movement_given_rain": pcorrs.iloc[1].to_dict(),
+        },
+    }
+    with open(output_dir / "summary.json", "w") as f:
+        json.dump(summary, f, indent=2, default=float)
 
     logger.info("Generating plots...")
     pd.plotting.scatter_matrix(df[['movement_mm', 'rainfall_mm', 'temperature_C']], diagonal='kde')
