@@ -347,7 +347,8 @@ class Database:
         """Return files associated with a project."""
         cursor = self.conn.cursor()
         cursor.execute(
-            "SELECT id, filename, upload_time FROM files WHERE project_id = ?",
+            "SELECT id, filename, upload_time FROM files WHERE project_id = ?"
+            " ORDER BY upload_time DESC",
             (project_id,),
         )
         rows = cursor.fetchall()
