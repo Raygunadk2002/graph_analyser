@@ -379,11 +379,19 @@
 
             // Restore previous upload if available
             const storedData = localStorage.getItem('uploadedData');
+            const storedRainfall = localStorage.getItem('rainfallData');
             if (storedData) {
                 try {
                     window.uploadedData = JSON.parse(storedData);
                     window.detectedColumns = window.uploadedData.columns || [];
                     window.columnMapping = window.uploadedData.mapped_columns || {};
+                    if (storedRainfall) {
+                        try {
+                            window.rainfallData = JSON.parse(storedRainfall);
+                        } catch (e) {
+                            console.error('Failed to restore rainfall data', e);
+                        }
+                    }
                     showColumnMapping();
                     // Set mapping selects to stored values
                     Object.entries(window.columnMapping).forEach(([key, val]) => {
@@ -678,6 +686,12 @@
                     if (response.data && response.data.status === 'success') {
                         // Clear previous data completely to prevent phantom data
                         window.uploadedData = response.data.data;
+                        // Persist analysis data so graph can be restored later
+                        try {
+                            localStorage.setItem('uploadedData', JSON.stringify(window.uploadedData));
+                        } catch (storageError) {
+                            console.error('Failed to store analysis data', storageError);
+                        }
                         
                         // Log the response data for debugging
                         console.log('Analysis response:', response.data);
@@ -736,15 +750,20 @@
             }
             
             // Function to update UI with analysis results
-            function updateUIWithResults() {
+           function updateUIWithResults() {
                 // Store all available sensors for reference in global variable
                 window.availableSensors = Object.keys(window.uploadedData.plot_data || {});
                 console.log('Available sensors:', window.availableSensors);
                 console.log('Plot data:', window.uploadedData.plot_data);
-                
+
                 // Update graph with all sensor data
                 updateGraph(window.uploadedData.plot_data);
-                
+
+                // If rainfall data exists, overlay it on the graph
+                if (window.rainfallData) {
+                    updateGraphWithRainfall();
+                }
+
                 // Show the basic graph section and tab
                 document.getElementById('basic-graph-section')?.classList.remove('hidden');
                 document.getElementById('tab-basic')?.click();
@@ -980,6 +999,12 @@
                         values: numericValues,
                         rolling7: rolling7
                     };
+                    // Persist rainfall data for later sessions
+                    try {
+                        localStorage.setItem('rainfallData', JSON.stringify(window.rainfallData));
+                    } catch (storageError) {
+                        console.error('Failed to store rainfall data', storageError);
+                    }
                     
                     if (rainfallStatus) rainfallStatus.innerHTML = '<span class="text-green-600">Rainfall data loaded successfully!</span>';
                     
