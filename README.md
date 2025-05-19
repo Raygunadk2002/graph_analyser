@@ -6,8 +6,9 @@ A web application for analyzing and visualizing structural movement data, includ
 
 - Upload and process Excel/CSV files containing structural movement data
 - Interactive visualization of movement patterns
+- Scatter matrix view to quickly spot linear relationships
 - Analysis of seasonal patterns and trends (displacement only)
-- Temperature correlation analysis (runs automatically when the server starts)
+- Rainfall and temperature cross-correlation analysis (runs automatically when the server starts)
 - Export capabilities for reports
 - Advanced analysis including STL decomposition, change point detection,
   rolling trend estimation, frequency spectrum and Kalman filtering
