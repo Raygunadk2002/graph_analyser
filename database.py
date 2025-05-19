@@ -21,6 +21,37 @@ class Database:
             self.conn = sqlite3.connect(self.db_path)
             cursor = self.conn.cursor()
             
+            # Create users table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL
+                )
+            ''')
+
+            # Create tokens table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS tokens (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    token TEXT UNIQUE NOT NULL,
+                    created_at TIMESTAMP NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            ''')
+
+            # Create projects table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS projects (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            ''')
+
             # Create files table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS files (
@@ -28,7 +59,9 @@ class Database:
                     filename TEXT NOT NULL,
                     upload_time TIMESTAMP NOT NULL,
                     file_path TEXT NOT NULL,
-                    status TEXT NOT NULL
+                    status TEXT NOT NULL,
+                    project_id INTEGER,
+                    FOREIGN KEY (project_id) REFERENCES projects(id)
                 )
             ''')
             
@@ -74,15 +107,15 @@ class Database:
             logger.error(f"Error initializing database: {str(e)}")
             raise
     
-    def store_file(self, filename: str, file_path: str) -> int:
+    def store_file(self, filename: str, file_path: str, project_id: Optional[int] = None) -> int:
         """Store file information in the database."""
         try:
             # Convert to absolute path
             abs_path = str(Path(file_path).resolve())
             cursor = self.conn.cursor()
             cursor.execute(
-                "INSERT INTO files (filename, upload_time, file_path, status) VALUES (?, ?, ?, ?)",
-                (filename, datetime.now(), abs_path, "uploaded")
+                "INSERT INTO files (filename, upload_time, file_path, status, project_id) VALUES (?, ?, ?, ?, ?)",
+                (filename, datetime.now(), abs_path, "uploaded", project_id)
             )
             self.conn.commit()
             file_id = cursor.lastrowid
@@ -265,6 +298,50 @@ class Database:
         except Exception as e:
             logger.error(f"Error retrieving analysis results: {str(e)}")
             raise
+
+    # --- User and Project Management ---
+    def create_user(self, username: str, password_hash: str) -> int:
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+            (username, password_hash)
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def get_user_by_username(self, username: str) -> Optional[tuple]:
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT id, password_hash FROM users WHERE username = ?", (username,))
+        return cursor.fetchone()
+
+    def create_token(self, user_id: int, token: str):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO tokens (user_id, token, created_at) VALUES (?, ?, ?)",
+            (user_id, token, datetime.now())
+        )
+        self.conn.commit()
+
+    def get_user_by_token(self, token: str) -> Optional[int]:
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT user_id FROM tokens WHERE token = ?", (token,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+    def create_project(self, user_id: int, name: str) -> int:
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO projects (user_id, name, created_at) VALUES (?, ?, ?)",
+            (user_id, name, datetime.now())
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def get_projects(self, user_id: int) -> List[Dict[str, Any]]:
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT id, name FROM projects WHERE user_id = ?", (user_id,))
+        rows = cursor.fetchall()
+        return [{"id": row[0], "name": row[1]} for row in rows]
     
     def close(self):
         """Close the database connection."""

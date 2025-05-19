@@ -17,6 +17,8 @@ import stumpy
 from tslearn.metrics import dtw
 import io
 from typing import Optional, List
+import hashlib
+import secrets
 import aiohttp
 from pydantic import BaseModel
 from data_loader import data_loader
@@ -61,6 +63,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Helper to get user id from Authorization header
+def get_user_id_from_request(request: Request) -> int:
+    auth = request.headers.get("Authorization")
+    if not auth or not auth.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing token")
+    token = auth.split(" ", 1)[1]
+    user_id = db.get_user_by_token(token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return user_id
 
 def analyze_movement(series, dates):
     """Analyze movement patterns in the data"""
@@ -132,6 +145,50 @@ def analyze_movement(series, dates):
             'movement_type': 'Error'
         }
 
+# Authentication Endpoints
+@app.post("/signup")
+async def signup(data: dict):
+    username = data.get("username")
+    password = data.get("password")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password required")
+    if db.get_user_by_username(username):
+        raise HTTPException(status_code=400, detail="User already exists")
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    user_id = db.create_user(username, password_hash)
+    return {"status": "success", "user_id": user_id}
+
+@app.post("/login")
+async def login(data: dict):
+    username = data.get("username")
+    password = data.get("password")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password required")
+    user = db.get_user_by_username(username)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    user_id, password_hash = user
+    if hashlib.sha256(password.encode()).hexdigest() != password_hash:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = secrets.token_hex(16)
+    db.create_token(user_id, token)
+    return {"token": token}
+
+@app.get("/projects")
+async def list_projects(request: Request):
+    user_id = get_user_id_from_request(request)
+    projects = db.get_projects(user_id)
+    return {"projects": projects}
+
+@app.post("/projects")
+async def create_project(request: Request, data: dict):
+    user_id = get_user_id_from_request(request)
+    name = data.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Project name required")
+    project_id = db.create_project(user_id, name)
+    return {"project_id": project_id}
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     """Serve the main page"""
@@ -143,7 +200,7 @@ async def test_endpoint():
     return {"status": "success", "message": "Server is working!"}
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(request: Request, file: UploadFile = File(...), project_id: int = Form(...)):
     """Handle file upload and return initial analysis"""
     try:
         logger.debug(f"Received file: {file.filename}")
@@ -166,6 +223,7 @@ async def upload_file(file: UploadFile = File(...)):
             logger.warning(f"Error cleaning up old files: {str(e)}")
         
         # Save the uploaded file
+        user_id = get_user_id_from_request(request)
         file_path = UPLOAD_DIR / file.filename
         try:
             # Read file content
@@ -179,7 +237,7 @@ async def upload_file(file: UploadFile = File(...)):
             logger.debug(f"File saved to: {file_path}")
             
             # Store file in database with absolute path
-            file_id = db.store_file(file.filename, str(file_path.resolve()))
+            file_id = db.store_file(file.filename, str(file_path.resolve()), project_id)
             logger.debug(f"File stored in database with ID: {file_id}")
             
         except Exception as e:
