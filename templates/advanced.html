@@ -6,379 +6,179 @@
     <title>Advanced Analysis - Graph Analyser</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-        .error-message {
-            display: none;
-            color: red;
-            padding: 10px;
-            margin: 10px 0;
-            border: 1px solid red;
-            border-radius: 4px;
-        }
-    </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="/dashboard">Graph Analyser</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/dashboard">Basic Analysis</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/seasonal">Seasonal Analysis</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/advanced">Advanced Analysis</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/profile">Profile</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/docs">API Docs</a>
-                    </li>
-                    <li class="nav-item">
-                        <button id="logout-btn" class="nav-link bg-transparent border-0">Logout</button>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-4">
-        <div class="error-message" id="errorMessage"></div>
-        <div class="loading" id="loading">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-2">Analyzing data...</p>
-        </div>
-
-        <div class="row mb-3">
-            <div class="col-md-4">
-                <label class="form-label">Select Project</label>
-                <select id="project-select" class="form-select mb-2"></select>
-                <label class="form-label mt-2">Select File</label>
-                <select id="file-select" class="form-select mb-2"></select>
-                <div class="d-flex">
-                    <input type="text" id="new-project-name" class="form-control me-2" placeholder="New project name">
-                    <button id="create-project" class="btn btn-success">Create</button>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <input type="file" id="file-input" class="form-control mb-2" accept=".csv,.xlsx,.xls">
-                <div id="upload-status" class="small text-center"></div>
-            </div>
-        </div>
-
-        <div class="row mt-4">
-            <div class="col-12">
-                <div id="basicGraph"></div>
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col-12">
-                <h2>Advanced Analysis</h2>
-                <p>This page shows advanced analysis of your data, including pattern detection and motif analysis.</p>
-            </div>
-        </div>
-
-        <div class="row mt-4">
-            <div class="col-12">
-                <div id="patternPlot"></div>
-            </div>
-        </div>
-
-        <div class="row mt-4">
-            <div class="col-12">
-                <h3>Analysis Results</h3>
-                <div id="analysisResults"></div>
-            </div>
-        </div>
-
-        <div class="row mt-4">
-            <div class="col-12">
-                <h3>Correlation Matrix</h3>
-                <div id="correlationMatrix"></div>
-            </div>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand" href="/dashboard">Graph Analyser</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav">
+                <li class="nav-item"><a class="nav-link" href="/dashboard">Basic Analysis</a></li>
+                <li class="nav-item"><a class="nav-link" href="/seasonal">Seasonal Analysis</a></li>
+                <li class="nav-item"><a class="nav-link active" href="/advanced">Advanced Analysis</a></li>
+                <li class="nav-item"><a class="nav-link" href="/profile">Profile</a></li>
+                <li class="nav-item"><a class="nav-link" href="/docs">API Docs</a></li>
+                <li class="nav-item"><button id="logout-btn" class="nav-link bg-transparent border-0">Logout</button></li>
+            </ul>
         </div>
     </div>
+</nav>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            if (!localStorage.getItem('authToken')) {
+<div class="container mt-4">
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <label class="form-label">Select Project</label>
+            <select id="project-select" class="form-select mb-2"></select>
+            <label class="form-label mt-2">Select File</label>
+            <select id="file-select" class="form-select mb-2"></select>
+            <input type="file" id="file-input" class="form-control mb-2" accept=".csv,.xlsx,.xls">
+            <div id="upload-status" class="small text-center"></div>
+        </div>
+    </div>
+    <div id="analysisResults"></div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const projectSelect = document.getElementById('project-select');
+        const fileSelect = document.getElementById('file-select');
+        const fileInput = document.getElementById('file-input');
+        const analysisResults = document.getElementById('analysisResults');
+        const logoutBtn = document.getElementById('logout-btn');
+        let currentFileId = null;
+
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('selectedProjectId');
                 window.location.href = '/login';
-                return;
-            }
-            const loading = document.getElementById('loading');
-            const errorMessage = document.getElementById('errorMessage');
-            const analysisResults = document.getElementById('analysisResults');
-            const authStatus = null;
-            const signupForm = null;
-            const loginForm = null;
-            const projectSelect = document.getElementById('project-select');
-            const fileSelect = document.getElementById('file-select');
-            const createProjectBtn = document.getElementById('create-project');
-            const newProjectName = document.getElementById('new-project-name');
-            const fileInput = document.getElementById('file-input');
-            const uploadStatus = document.getElementById('upload-status');
-            const basicGraph = document.getElementById('basicGraph');
-            let currentFileId = null;
-            const logoutBtn = document.getElementById('logout-btn');
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', () => {
-                    localStorage.removeItem('authToken');
-                    localStorage.removeItem('selectedProjectId');
-                    window.location.href = '/login';
-                });
-            }
+            });
+        }
 
-            async function loadProjects() {
-                const token = localStorage.getItem('authToken');
-                if (!token) return;
-                const res = await fetch('/projects', { headers: { 'Authorization': `Bearer ${token}` } });
-                if (!res.ok) return;
-                const data = await res.json();
-                projectSelect.innerHTML = '';
-                data.projects.forEach(p => {
-                    const opt = document.createElement('option');
-                    opt.value = p.id;
-                    opt.textContent = p.name;
-                    projectSelect.appendChild(opt);
-                });
-                const saved = localStorage.getItem('selectedProjectId');
-                if (saved) {
-                    projectSelect.value = saved;
-                }
-                if (data.projects.length > 0) {
-                    await loadFiles();
-                }
-            }
+        async function loadProjects() {
+            const token = localStorage.getItem('authToken');
+            if (!token) return;
+            const res = await fetch('/projects', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) return;
+            const data = await res.json();
+            projectSelect.innerHTML = '';
+            data.projects.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                projectSelect.appendChild(opt);
+            });
+            const saved = localStorage.getItem('selectedProjectId');
+            if (saved) projectSelect.value = saved;
+            if (data.projects.length > 0) await loadFiles();
+        }
 
-            async function loadFiles() {
-                const token = localStorage.getItem('authToken');
-                if (!token) return;
-                const pid = projectSelect.value;
-                if (!pid) return;
-                const res = await fetch(`/projects/${pid}/files`, { headers: { 'Authorization': `Bearer ${token}` } });
-                if (!res.ok) return;
-                const data = await res.json();
-                fileSelect.innerHTML = '';
-                data.files.forEach(f => {
-                    const opt = document.createElement('option');
-                    opt.value = f.id;
-                    opt.textContent = f.filename;
-                    fileSelect.appendChild(opt);
-                });
-                if (data.files.length > 0) {
-                    fileSelect.value = data.files[0].id;
-                    currentFileId = data.files[0].id;
-                    await loadExistingAnalysis();
-                }
-            }
-
-            async function loadExistingAnalysis() {
-                if (!currentFileId) return;
-                const token = localStorage.getItem('authToken');
-                const res = await fetch(`/files/${currentFileId}/latest-analysis`, { headers: { 'Authorization': `Bearer ${token}` } });
-                if (!res.ok) return;
-                const data = await res.json();
-                await runBasicAnalysis(data.mapping);
+        async function loadFiles() {
+            const token = localStorage.getItem('authToken');
+            if (!token) return;
+            const pid = projectSelect.value;
+            if (!pid) return;
+            const res = await fetch(`/projects/${pid}/files`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) return;
+            const data = await res.json();
+            fileSelect.innerHTML = '';
+            data.files.forEach(f => {
+                const opt = document.createElement('option');
+                opt.value = f.id;
+                opt.textContent = f.filename;
+                fileSelect.appendChild(opt);
+            });
+            if (data.files.length > 0) {
+                fileSelect.value = data.files[0].id;
+                currentFileId = data.files[0].id;
                 await performAdvancedAnalysis();
             }
+        }
 
-
-            if (createProjectBtn) {
-                createProjectBtn.addEventListener('click', async e => {
-                    e.preventDefault();
-                    const token = localStorage.getItem('authToken');
-                    if (!token) return;
-                    const name = newProjectName.value.trim();
-                    if (!name) return;
-                    await fetch('/projects', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ name })
-                    });
-                    newProjectName.value = '';
-                    loadProjects();
-                });
-            }
-
-            async function uploadAndAnalyse() {
-                const token = localStorage.getItem('authToken');
-                if (!token) {
-                    uploadStatus.textContent = 'Please login first';
-                    return;
-                }
-                const file = fileInput.files[0];
-                if (!file) return;
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('project_id', projectSelect.value);
-                uploadStatus.textContent = 'Uploading...';
-                const res = await fetch('/upload', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: formData
-                });
-                if (!res.ok) {
-                    uploadStatus.textContent = 'Upload failed';
-                    return;
-                }
+        async function uploadAndAnalyse() {
+            const token = localStorage.getItem('authToken');
+            if (!token || !fileInput.files.length) return;
+            const pid = projectSelect.value;
+            const form = new FormData();
+            form.append('file', fileInput.files[0]);
+            form.append('project_id', pid);
+            const res = await fetch('/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: form });
+            if (res.ok) {
                 const data = await res.json();
-                currentFileId = data.data.file_id;
-                uploadStatus.textContent = 'File uploaded';
-
-                await runBasicAnalysis(data.data.mapped_columns);
+                currentFileId = data.file_id;
                 await performAdvancedAnalysis();
+                loadFiles();
+            } else {
+                alert('Upload failed');
             }
+        }
 
-            async function runBasicAnalysis(mapping) {
-                const token = localStorage.getItem('authToken');
-                const form = new FormData();
-                form.append('mapping', JSON.stringify(mapping));
-                form.append('file_id', currentFileId);
-                const res = await fetch('/analyse', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: form
-                });
-                if (!res.ok) return;
-                const result = await res.json();
-                updateGraph(result.data.plot_data);
+        async function performAdvancedAnalysis() {
+            if (!currentFileId) return;
+            const token = localStorage.getItem('authToken');
+            const res = await fetch('/analyse/advanced', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ file_id: currentFileId })
+            });
+            if (!res.ok) return;
+            const results = await res.json();
+            displayResults(results);
+        }
+
+        function plotAxis(axis, data, time) {
+            const section = document.createElement('div');
+            section.className = 'mb-5';
+            section.innerHTML = `
+                <h4>${axis} Axis</h4>
+                <div id="${axis}-stl"></div>
+                <div id="${axis}-slope" class="mt-3"></div>
+                <div id="${axis}-freq" class="mt-3"></div>
+                <div id="${axis}-kalman" class="mt-3"></div>`;
+            analysisResults.appendChild(section);
+
+            if (data.stl) {
+                const stlTraces = [
+                    { x: time, y: data.stl.trend, name: 'Trend' },
+                    { x: time, y: data.stl.seasonal, name: 'Seasonal' },
+                    { x: time, y: data.stl.resid, name: 'Residual' }
+                ];
+                Plotly.newPlot(`${axis}-stl`, stlTraces, { title: `${axis} STL Decomposition` });
             }
+            if (data.rolling_slope) {
+                const slopeTime = time.slice(time.length - data.rolling_slope.length);
+                Plotly.newPlot(`${axis}-slope`, [{ x: slopeTime, y: data.rolling_slope, mode: 'lines' }], { title: `${axis} Rolling Trend` });
+            }
+            if (data.spectrum) {
+                Plotly.newPlot(`${axis}-freq`, [{ x: data.spectrum.frequency, y: data.spectrum.amplitude, mode: 'lines' }], { title: `${axis} Frequency Spectrum` });
+            }
+            if (data.kalman) {
+                Plotly.newPlot(`${axis}-kalman`, [
+                    { x: time, y: data.original, mode: 'lines', name: 'Original', opacity: 0.4 },
+                    { x: time, y: data.kalman, mode: 'lines', name: 'Kalman' }
+                ], { title: `${axis} Kalman Filter` });
+            }
+        }
 
-            async function performAdvancedAnalysis() {
-                if (!currentFileId) return;
-                loading.style.display = 'block';
-                errorMessage.style.display = 'none';
-                const token = localStorage.getItem('authToken');
-                const res = await fetch('/analyse/advanced', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': token ? `Bearer ${token}` : ''
-                    },
-                    body: JSON.stringify({ file_id: currentFileId })
-                });
-                if (!res.ok) {
-                    const err = await res.json();
-                    errorMessage.textContent = err.detail || 'Analysis failed';
-                    errorMessage.style.display = 'block';
-                    loading.style.display = 'none';
-                    return;
+        function displayResults(res) {
+            analysisResults.innerHTML = '';
+            const time = res.time;
+            ['X','Y','T'].forEach(axis => {
+                if (res[axis] && !res[axis].error) {
+                    plotAxis(axis, res[axis], time);
                 }
-                const results = await res.json();
-                displayResults(results);
-                loading.style.display = 'none';
-            }
+            });
+        }
 
-            function updateGraph(data) {
-                const traces = [];
-                Object.entries(data).forEach(([key, val]) => {
-                    traces.push({ x: val.time, y: val.values, mode: 'lines', type: 'scatter', name: key });
-                });
-                Plotly.newPlot(basicGraph, traces, { title: 'Sensor Data' });
-            }
-
-            if (fileInput) {
-                fileInput.addEventListener('change', uploadAndAnalyse);
-            }
-
-            if (projectSelect) {
-                projectSelect.addEventListener('change', () => {
-                    localStorage.setItem('selectedProjectId', projectSelect.value);
-                    loadFiles();
-                });
-            }
-
-            if (fileSelect) {
-                fileSelect.addEventListener('change', () => {
-                    currentFileId = fileSelect.value;
-                    loadExistingAnalysis();
-                });
-            }
-
-            if (localStorage.getItem('authToken')) {
-                loadProjects();
-            }
-
-            function displayResults(results) {
-                // Display pattern analysis results
-                let html = '<div class="card mb-4">';
-                html += '<div class="card-header"><h4>Pattern Analysis</h4></div>';
-                html += '<div class="card-body">';
-                html += `<p><strong>Pattern Type:</strong> ${results.pattern_type}</p>`;
-                html += `<p><strong>Pattern Confidence:</strong> ${results.pattern_confidence.toFixed(2)}</p>`;
-                html += `<p><strong>Pattern Frequency:</strong> ${results.pattern_frequency}</p>`;
-                html += `<p><strong>Pattern Duration:</strong> ${results.pattern_duration}</p>`;
-                html += '</div></div>';
-
-                // Display motif analysis results
-                html += '<div class="card mb-4">';
-                html += '<div class="card-header"><h4>Motif Analysis</h4></div>';
-                html += '<div class="card-body">';
-                if (results.motifs && results.motifs.length > 0) {
-                    html += '<ul class="list-group">';
-                    results.motifs.forEach((motif, index) => {
-                        html += `<li class="list-group-item">
-                            <strong>Motif ${index + 1}:</strong> 
-                            Duration: ${motif.duration}, 
-                            Strength: ${motif.strength.toFixed(2)}
-                        </li>`;
-                    });
-                    html += '</ul>';
-                } else {
-                    html += '<p>No significant motifs found.</p>';
-                }
-                html += '</div></div>';
-
-                analysisResults.innerHTML = html;
-
-                // Create correlation matrix heatmap
-                if (results.correlation_matrix) {
-                    const data = [{
-                        z: results.correlation_matrix,
-                        type: 'heatmap',
-                        colorscale: 'RdBu',
-                        zmin: -1,
-                        zmax: 1
-                    }];
-
-                    const layout = {
-                        title: 'Correlation Matrix',
-                        xaxis: {
-                            title: 'Variables',
-                            tickangle: -45
-                        },
-                        yaxis: {
-                            title: 'Variables'
-                        }
-                    };
-
-                    Plotly.newPlot('correlationMatrix', data, layout);
-                }
-            }
-
-            // Perform analysis when page loads
-            performAdvancedAnalysis();
-        });
-    </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+        if (fileInput) fileInput.addEventListener('change', uploadAndAnalyse);
+        if (projectSelect) projectSelect.addEventListener('change', () => { localStorage.setItem('selectedProjectId', projectSelect.value); loadFiles(); });
+        if (fileSelect) fileSelect.addEventListener('change', () => { currentFileId = fileSelect.value; performAdvancedAnalysis(); });
+        if (localStorage.getItem('authToken')) loadProjects();
+    });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-</html> 
+</html>
