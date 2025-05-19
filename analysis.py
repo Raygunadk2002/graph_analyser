@@ -143,11 +143,26 @@ def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> N
     plt.savefig(output_dir / 'scatter_matrix.png')
     plt.clf()
 
-    from statsmodels.tsa.stattools import ccf
+    try:
+        from statsmodels.tsa.stattools import ccf as sm_ccf
 
-    def compute_ccf(x, y) -> list:
-        """Return first 30 values of the cross-correlation function."""
-        return ccf(x, y)[:30].tolist()
+        def compute_ccf(x, y, max_lag: int = 30) -> list:
+            """Return the first ``max_lag`` values of the cross-correlation.
+
+            Uses ``statsmodels`` if available.
+            """
+            return sm_ccf(x, y)[:max_lag].tolist()
+
+    except Exception:  # pragma: no cover - fallback for missing statsmodels
+        def compute_ccf(x, y, max_lag: int = 30) -> list:
+            """Return cross-correlation up to ``max_lag`` using ``numpy``."""
+            x = np.asarray(x) - np.mean(x)
+            y = np.asarray(y) - np.mean(y)
+            n = len(x)
+            corr = np.correlate(x, y, mode="full")
+            mid = n - 1
+            denom = np.std(x) * np.std(y) * n
+            return (corr[mid: mid + max_lag] / denom).tolist()
 
     rainfall_ccf = compute_ccf(df['rainfall_mm'], df['movement_mm'])
     temperature_ccf = compute_ccf(df['temperature_C'], df['movement_mm'])
