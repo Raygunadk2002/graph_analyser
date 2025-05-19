@@ -1,5 +1,7 @@
 import logging
-from typing import List
+from typing import List, Optional
+import numpy as np
+from scipy import stats
 from pathlib import Path
 import json
 
@@ -42,6 +44,33 @@ def compute_partial_correlations(df: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([p1, p2], axis=0)
 
 
+def compute_rolling_correlation(df: pd.DataFrame, window: int = 30) -> pd.DataFrame:
+    """Return rolling correlation and p-values between movement and rainfall."""
+    records = []
+    for i in range(window - 1, len(df)):
+        sub = df.iloc[i - window + 1 : i + 1]
+        r, p = stats.pearsonr(sub['movement_mm'], sub['rainfall_mm'])
+        records.append({
+            'timestamp': df['timestamp'].iloc[i],
+            'r': float(r),
+            'p': float(p),
+        })
+    return pd.DataFrame(records)
+
+
+def first_significant_date(rcorr: pd.DataFrame, r_thresh: float = 0.5, p_thresh: float = 0.05, consecutive: int = 1) -> Optional[pd.Timestamp]:
+    """Find the first date where correlation exceeds thresholds."""
+    mask = (rcorr['r'].abs() >= r_thresh) & (rcorr['p'] < p_thresh)
+    if consecutive > 1:
+        rolled = mask.rolling(consecutive).apply(lambda x: all(x), raw=True)
+        idx = rolled.idxmax() if (rolled >= 1).any() else None
+    else:
+        idx = mask.idxmax() if mask.any() else None
+    if idx is not None and mask.iloc[idx]:
+        return rcorr.loc[idx, 'timestamp']
+    return None
+
+
 def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> None:
     """Run three-way analysis of movement, rainfall and temperature.
 
@@ -72,6 +101,22 @@ def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> N
     pcorrs = compute_partial_correlations(df)
     logger.info("Partial correlations:\n%s", pcorrs)
 
+    logger.info("Computing rolling correlation...")
+    rcorr = compute_rolling_correlation(df, window=30)
+    first_date = first_significant_date(rcorr)
+    if not rcorr.empty:
+        plt.plot(rcorr['timestamp'], rcorr['r'])
+        plt.axhline(0, color='black', linewidth=0.5)
+        plt.xlabel('Date')
+        plt.ylabel('Rolling Pearson r')
+        plt.title('Rolling 30-day correlation')
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig(output_dir / 'rolling_correlation.png')
+        plt.clf()
+    else:
+        first_date = None
+
     summary = {
         "regression": {
             "coefficients": model.params.to_dict(),
@@ -81,6 +126,12 @@ def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> N
         "partial_correlations": {
             "rainfall_vs_movement_given_temp": pcorrs.iloc[0].to_dict(),
             "temperature_vs_movement_given_rain": pcorrs.iloc[1].to_dict(),
+        },
+        "rolling_correlation": {
+            "window_days": 30,
+            "threshold_r": 0.5,
+            "threshold_p": 0.05,
+            "first_significant_date": first_date.strftime('%Y-%m-%d') if first_date is not None else None,
         },
     }
     with open(output_dir / "summary.json", "w") as f:

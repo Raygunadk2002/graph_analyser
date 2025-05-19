@@ -47,6 +47,17 @@
                 <h2 class="text-xl font-semibold mb-2">Temperature Cross-Correlation</h2>
                 <div id="temperature-ccf" class="mx-auto border rounded shadow" style="height: 400px;"></div>
             </div>
+            <div>
+                <h2 class="text-xl font-semibold mb-2">Rolling Correlation Onset Detection</h2>
+                <img src="/analysis_outputs/rolling_correlation.png" alt="Rolling correlation" class="mx-auto border rounded shadow mb-4">
+                <p class="text-gray-700 mb-2">A rolling Pearson correlation is computed between de-seasonalized movement and the 7-day cumulative rainfall series. When the correlation magnitude first exceeds a chosen threshold and is statistically significant, the corresponding date indicates when movement starts responding to rainfall.</p>
+                <ol class="list-decimal list-inside text-gray-700 space-y-1">
+                    <li>Align both series on a daily index without gaps.</li>
+                    <li>Compute the 30-day rolling correlation and its p-value.</li>
+                    <li>Locate the earliest window where |r| ≥ 0.5 and p &lt; 0.05 (optionally requiring persistence).</li>
+                </ol>
+                <p class="text-gray-700 mt-2">The detected date, if any, is included in the summary above.</p>
+            </div>
         </div>
     </div>
 
