@@ -49,6 +49,10 @@ TEMPLATES_DIR.mkdir(exist_ok=True)
 
 app = FastAPI(title="Structural Movement Graph Analyser")
 
+# Directory for analysis results
+ANALYSIS_OUTPUT_DIR = Path("analysis_outputs")
+ANALYSIS_OUTPUT_DIR.mkdir(exist_ok=True)
+
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -63,6 +67,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Run correlation analysis when the server starts
+@app.on_event("startup")
+async def run_startup_analysis() -> None:
+    logger.info("Running correlation analysis on startup...")
+    try:
+        analyze_movement_rain_temp(ANALYSIS_OUTPUT_DIR)
+        logger.info("Startup analysis completed")
+    except Exception as e:
+        logger.error("Startup analysis failed: %s", e, exc_info=True)
 
 # Helper to get user id from Authorization header
 def get_user_id_from_request(request: Request) -> int:
@@ -1368,6 +1382,5 @@ def calculate_correlation_matrix(df):
     return [[1.0, 0.5], [0.5, 1.0]]
 
 if __name__ == "__main__":
-    analyze_movement_rain_temp()
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

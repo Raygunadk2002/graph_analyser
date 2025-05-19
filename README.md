@@ -7,7 +7,7 @@ A web application for analyzing and visualizing structural movement data, includ
 - Upload and process Excel/CSV files containing structural movement data
 - Interactive visualization of movement patterns
 - Analysis of seasonal patterns and trends (displacement only)
-- Temperature correlation analysis
+- Temperature correlation analysis (runs automatically when the server starts)
 - Export capabilities for reports
 - Advanced analysis including STL decomposition, change point detection,
   rolling trend estimation, frequency spectrum and Kalman filtering
@@ -35,8 +35,10 @@ pip install -r requirements.txt
 ```bash
 python app.py
 ```
-
-The application will be available at `http://localhost:8000`
+The application will be available at `http://localhost:8000`.
+When the server starts, a correlation analysis between movement,
+rainfall and temperature data is executed automatically and the
+generated plots are saved in the `analysis_outputs` directory.
 
 ## Usage
 

@@ -1,5 +1,6 @@
 import logging
 from typing import List
+from pathlib import Path
 
 import pandas as pd
 import statsmodels.api as sm
@@ -40,8 +41,16 @@ def compute_partial_correlations(df: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([p1, p2], axis=0)
 
 
-def analyze_movement_rain_temp() -> None:
-    """Run three-way analysis of movement, rainfall and temperature."""
+def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> None:
+    """Run three-way analysis of movement, rainfall and temperature.
+
+    Parameters
+    ----------
+    output_dir : Path, optional
+        Directory where result plots will be written. Created if it does not
+        already exist.
+    """
+    output_dir.mkdir(exist_ok=True, parents=True)
     logger.info("Loading data...")
     df_mov = load_monitoring_data()
     df_rain = load_rainfall_data()
@@ -60,7 +69,7 @@ def analyze_movement_rain_temp() -> None:
     logger.info("Generating plots...")
     pd.plotting.scatter_matrix(df[['movement_mm', 'rainfall_mm', 'temperature_C']], diagonal='kde')
     plt.suptitle("Scatter Matrix")
-    plt.savefig('scatter_matrix.png')
+    plt.savefig(output_dir / 'scatter_matrix.png')
     plt.clf()
 
     from statsmodels.tsa.stattools import ccf
@@ -71,11 +80,11 @@ def analyze_movement_rain_temp() -> None:
         plt.title(f"{name} → Movement CCF")
         plt.xlabel("Lag (days)")
         plt.ylabel("Correlation")
-        plt.savefig(f"{name.lower()}_ccf.png")
+        plt.savefig(output_dir / f"{name.lower()}_ccf.png")
         plt.clf()
 
     plot_ccf(df['rainfall_mm'], df['movement_mm'], name='Rainfall')
     plot_ccf(df['temperature_C'], df['movement_mm'], name='Temperature')
 
-    logger.info("Analysis complete. Plots saved to disk.")
+    logger.info("Analysis complete. Plots saved to %s", output_dir.resolve())
 
