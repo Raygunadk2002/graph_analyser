@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Correlation Analysis - Structural Movement Graph Analyser</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <nav class="bg-white shadow-lg">
@@ -36,15 +37,15 @@
         <div class="space-y-8">
             <div>
                 <h2 class="text-xl font-semibold mb-2">Scatter Matrix</h2>
-                <img src="/analysis_outputs/scatter_matrix.png" alt="Scatter matrix" class="mx-auto border rounded shadow">
+                <div id="scatter-matrix" class="mx-auto border rounded shadow" style="height: 500px;"></div>
             </div>
             <div>
                 <h2 class="text-xl font-semibold mb-2">Rainfall Cross-Correlation</h2>
-                <img src="/analysis_outputs/rainfall_ccf.png" alt="Rainfall cross correlation" class="mx-auto border rounded shadow">
+                <div id="rainfall-ccf" class="mx-auto border rounded shadow" style="height: 400px;"></div>
             </div>
             <div>
                 <h2 class="text-xl font-semibold mb-2">Temperature Cross-Correlation</h2>
-                <img src="/analysis_outputs/temperature_ccf.png" alt="Temperature cross correlation" class="mx-auto border rounded shadow">
+                <div id="temperature-ccf" class="mx-auto border rounded shadow" style="height: 400px;"></div>
             </div>
         </div>
     </div>
@@ -67,6 +68,41 @@
                 })
                 .catch(() => {
                     document.getElementById('summary-content').textContent = 'Summary not available';
+                });
+
+            // Load merged data for scatter matrix
+            axios.get('/analysis_outputs/merged_data.json')
+                .then(res => {
+                    const data = res.data;
+                    const cols = data.columns;
+                    const rows = data.data;
+                    const idxMov = cols.indexOf('movement_mm');
+                    const idxRain = cols.indexOf('rainfall_mm');
+                    const idxTemp = cols.indexOf('temperature_C');
+                    const dimensions = [
+                        {label: 'Movement', values: rows.map(r => r[idxMov])},
+                        {label: 'Rainfall', values: rows.map(r => r[idxRain])},
+                        {label: 'Temperature', values: rows.map(r => r[idxTemp])}
+                    ];
+                    Plotly.newPlot('scatter-matrix', [{type: 'splom', dimensions, marker: {size: 5}}], {title: 'Scatter Matrix'});
+                });
+
+            // Rainfall CCF
+            axios.get('/analysis_outputs/rainfall_ccf.json')
+                .then(res => {
+                    const values = res.data;
+                    const trace = {x: values.map((_, i) => i), y: values, type: 'bar'};
+                    const layout = {title: 'Rainfall → Movement CCF', xaxis: {title: 'Lag (days)'}, yaxis: {title: 'Correlation'}};
+                    Plotly.newPlot('rainfall-ccf', [trace], layout);
+                });
+
+            // Temperature CCF
+            axios.get('/analysis_outputs/temperature_ccf.json')
+                .then(res => {
+                    const values = res.data;
+                    const trace = {x: values.map((_, i) => i), y: values, type: 'bar'};
+                    const layout = {title: 'Temperature → Movement CCF', xaxis: {title: 'Lag (days)'}, yaxis: {title: 'Correlation'}};
+                    Plotly.newPlot('temperature-ccf', [trace], layout);
                 });
         });
     </script>

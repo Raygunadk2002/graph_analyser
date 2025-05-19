@@ -60,6 +60,11 @@ def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> N
     logger.info("Merging and resampling data...")
     df = merge_and_resample([df_mov, df_rain, df_temp])
 
+    # Save merged data for interactive plotting
+    (output_dir / "merged_data.json").write_text(
+        df.to_json(orient="split", date_format="iso")
+    )
+
     logger.info("Running regression analysis...")
     model = run_three_way_regression(df)
 
@@ -89,17 +94,26 @@ def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> N
 
     from statsmodels.tsa.stattools import ccf
 
-    def plot_ccf(x, y, name):
-        c = ccf(x, y)[:30]
-        plt.bar(range(len(c)), c)
+    def compute_ccf(x, y) -> list:
+        """Return first 30 values of the cross-correlation function."""
+        return ccf(x, y)[:30].tolist()
+
+    rainfall_ccf = compute_ccf(df['rainfall_mm'], df['movement_mm'])
+    temperature_ccf = compute_ccf(df['temperature_C'], df['movement_mm'])
+
+    (output_dir / "rainfall_ccf.json").write_text(json.dumps(rainfall_ccf))
+    (output_dir / "temperature_ccf.json").write_text(json.dumps(temperature_ccf))
+
+    def plot_ccf(values, name):
+        plt.bar(range(len(values)), values)
         plt.title(f"{name} → Movement CCF")
         plt.xlabel("Lag (days)")
         plt.ylabel("Correlation")
         plt.savefig(output_dir / f"{name.lower()}_ccf.png")
         plt.clf()
 
-    plot_ccf(df['rainfall_mm'], df['movement_mm'], name='Rainfall')
-    plot_ccf(df['temperature_C'], df['movement_mm'], name='Temperature')
+    plot_ccf(rainfall_ccf, name='Rainfall')
+    plot_ccf(temperature_ccf, name='Temperature')
 
     logger.info("Analysis complete. Plots saved to %s", output_dir.resolve())
 
