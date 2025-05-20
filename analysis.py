@@ -10,7 +10,6 @@ import statsmodels.api as sm
 from pingouin import partial_corr
 import matplotlib.pyplot as plt
 
-from data_loader import load_monitoring_data, load_rainfall_data, load_temperature_data
 
 logger = logging.getLogger(__name__)
 
@@ -371,23 +370,23 @@ def compute_hmm_regime(
     return onset
 
 
-def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> None:
+def analyze_movement_rain_temp(
+    df: pd.DataFrame, output_dir: Path = Path("analysis_outputs")
+) -> None:
     """Run three-way analysis of movement, rainfall and temperature.
 
     Parameters
     ----------
+    df : pd.DataFrame
+        Merged dataframe containing ``timestamp``, ``movement_mm``, ``rainfall_mm``
+        and ``temperature_C`` columns already aligned on a daily frequency.
     output_dir : Path, optional
         Directory where result plots will be written. Created if it does not
         already exist.
     """
     output_dir.mkdir(exist_ok=True, parents=True)
-    logger.info("Loading data...")
-    df_mov = load_monitoring_data()
-    df_rain = load_rainfall_data()
-    df_temp = load_temperature_data()
 
-    logger.info("Merging and resampling data...")
-    df = merge_and_resample([df_mov, df_rain, df_temp])
+    logger.debug("Beginning correlation analysis with %d records", len(df))
 
     # Save merged data for interactive plotting
     (output_dir / "merged_data.json").write_text(

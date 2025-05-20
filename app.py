@@ -23,7 +23,12 @@ import aiohttp
 from pydantic import BaseModel
 from database import db
 import traceback
-from analysis import analyze_movement_rain_temp
+from analysis import analyze_movement_rain_temp, merge_and_resample
+from data_loader import (
+    load_monitoring_data,
+    load_rainfall_data,
+    load_temperature_data,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -74,7 +79,11 @@ app.add_middleware(
 async def run_startup_analysis() -> None:
     logger.info("Running correlation analysis on startup...")
     try:
-        analyze_movement_rain_temp(ANALYSIS_OUTPUT_DIR)
+        df_mov = load_monitoring_data()
+        df_rain = load_rainfall_data()
+        df_temp = load_temperature_data()
+        df = merge_and_resample([df_mov, df_rain, df_temp])
+        analyze_movement_rain_temp(df, ANALYSIS_OUTPUT_DIR)
         logger.info("Startup analysis completed")
     except Exception as e:
         logger.error("Startup analysis failed: %s", e, exc_info=True)
@@ -1211,10 +1220,66 @@ async def correlation_page(request: Request):
     return templates.TemplateResponse("correlation.html", {"request": request})
 
 
+@app.post("/run-correlation")
+async def run_correlation(request: Request, data: dict):
+    """Run correlation analysis for a specific file."""
+    user_id = get_user_id_from_request(request)
+    file_id = data.get("file_id")
+    if not file_id:
+        raise HTTPException(status_code=400, detail="file_id required")
+
+    df = db.get_file_data(file_id)
+    if df is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    latest = db.get_latest_analysis(file_id)
+    if not latest:
+        raise HTTPException(status_code=400, detail="No analysis mapping available")
+
+    mapping = latest["mapping"]
+    time_col = mapping.get("time")
+    move_col = mapping.get("x")
+    rain_col = mapping.get("y")
+    temp_col = mapping.get("t")
+
+    if not all([time_col, move_col, rain_col, temp_col]):
+        raise HTTPException(
+            status_code=400,
+            detail="Mapping must include time, x, y and t columns",
+        )
+
+    try:
+        merged = pd.DataFrame(
+            {
+                "timestamp": pd.to_datetime(df[time_col]),
+                "movement_mm": pd.to_numeric(df[move_col], errors="coerce"),
+                "rainfall_mm": pd.to_numeric(df[rain_col], errors="coerce"),
+                "temperature_C": pd.to_numeric(df[temp_col], errors="coerce"),
+            }
+        ).dropna()
+    except KeyError as e:
+        raise HTTPException(status_code=400, detail=f"Column not found: {e}")
+
+    merged = (
+        merged.set_index("timestamp")
+        .resample("D")
+        .mean()
+        .dropna()
+        .reset_index()
+    )
+
+    out_dir = ANALYSIS_OUTPUT_DIR / f"file_{file_id}"
+    analyze_movement_rain_temp(merged, out_dir)
+    return {"status": "success"}
+
+
 @app.get("/correlation-summary")
-async def correlation_summary():
+async def correlation_summary(file_id: int = None):
     """Return regression and correlation summary as JSON."""
-    summary_file = ANALYSIS_OUTPUT_DIR / "summary.json"
+    output_dir = (
+        ANALYSIS_OUTPUT_DIR if file_id is None else ANALYSIS_OUTPUT_DIR / f"file_{file_id}"
+    )
+    summary_file = output_dir / "summary.json"
     if not summary_file.exists():
         raise HTTPException(status_code=404, detail="Summary not available")
     with summary_file.open() as f:
