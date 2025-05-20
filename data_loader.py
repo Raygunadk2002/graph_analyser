@@ -10,6 +10,38 @@ import traceback
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# Optional directory containing real data files. If files are not found,
+# synthetic example data will be generated instead.
+DATA_DIR = Path("data")
+
+
+def _load_real_dataset(filename: str) -> Optional[pd.DataFrame]:
+    """Attempt to load a dataset from ``DATA_DIR``.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the CSV file to load.
+
+    Returns
+    -------
+    Optional[pd.DataFrame]
+        The loaded dataframe if the file exists and could be read, otherwise
+        ``None``.
+    """
+
+    path = DATA_DIR / filename
+    if not path.exists():
+        return None
+    try:
+        df = pd.read_csv(path)
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+        return df
+    except Exception as exc:
+        logger.warning("Failed to load %s: %s", path, exc)
+        return None
+
 class DataLoader:
     def __init__(self):
         self.df: Optional[pd.DataFrame] = None
@@ -149,23 +181,53 @@ def _build_date_range(days: int = 365) -> pd.DatetimeIndex:
 
 
 def load_monitoring_data(days: int = 365) -> pd.DataFrame:
-    """Return example monitoring data with ``timestamp`` and ``movement_mm`` columns."""
+    """Load monitoring data.
+
+    If a ``monitoring.csv`` file exists in ``DATA_DIR`` it will be used.
+    Otherwise synthetic data is generated for demonstration purposes.
+    """
+
+    real = _load_real_dataset("monitoring.csv")
+    if real is not None:
+        return real
+
     dates = _build_date_range(days)
     movement = np.cumsum(np.random.normal(scale=0.5, size=len(dates)))
+    logger.warning("Using generated sample monitoring data")
     return pd.DataFrame({"timestamp": dates, "movement_mm": movement})
 
 
 def load_rainfall_data(days: int = 365) -> pd.DataFrame:
-    """Return example rainfall data with ``timestamp`` and ``rainfall_mm`` columns."""
+    """Load rainfall data.
+
+    If a ``rainfall.csv`` file exists in ``DATA_DIR`` it will be used.
+    Otherwise synthetic data is generated.
+    """
+
+    real = _load_real_dataset("rainfall.csv")
+    if real is not None:
+        return real
+
     dates = _build_date_range(days)
     rainfall = np.random.gamma(shape=0.5, scale=4.0, size=len(dates))
+    logger.warning("Using generated sample rainfall data")
     return pd.DataFrame({"timestamp": dates, "rainfall_mm": rainfall})
 
 
 def load_temperature_data(days: int = 365) -> pd.DataFrame:
-    """Return example temperature data with ``timestamp`` and ``temperature_C`` columns."""
+    """Load temperature data.
+
+    If a ``temperature.csv`` file exists in ``DATA_DIR`` it will be used.
+    Otherwise synthetic data is produced.
+    """
+
+    real = _load_real_dataset("temperature.csv")
+    if real is not None:
+        return real
+
     dates = _build_date_range(days)
     base = 15 + 10 * np.sin(np.linspace(0, 2 * np.pi, len(dates)))
     noise = np.random.normal(scale=2.0, size=len(dates))
     temp = base + noise
+    logger.warning("Using generated sample temperature data")
     return pd.DataFrame({"timestamp": dates, "temperature_C": temp})

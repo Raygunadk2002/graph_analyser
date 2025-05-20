@@ -40,6 +40,11 @@ The application will be available at `http://localhost:8000`.
 When the server starts, a correlation analysis between movement,
 rainfall and temperature data is executed automatically and the
 generated plots are saved in the `analysis_outputs` directory.
+If you wish to use real monitoring, rainfall and temperature data
+place CSV files named `monitoring.csv`, `rainfall.csv` and
+`temperature.csv` inside a directory called `data`. These files will
+be loaded automatically instead of the example data that is generated
+for demonstration purposes.
 
 ## Usage
 
