@@ -30,6 +30,20 @@
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold mb-6">Correlation Analysis</h1>
         <p class="mb-4 text-gray-700">These plots show the relationship between structural movement, rainfall and temperature based on example data analysed at server startup.</p>
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Select Project</label>
+                <select id="project-select" class="mt-1 block w-full border border-gray-300 rounded-md"></select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Select File</label>
+                <select id="file-select" class="mt-1 block w-full border border-gray-300 rounded-md"></select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Upload File</label>
+                <input type="file" id="file-input" class="mt-1 block w-full text-sm border border-gray-300 rounded-md" accept=".csv,.xlsx,.xls">
+            </div>
+        </div>
         <div id="summary" class="mb-8">
             <h2 class="text-xl font-semibold mb-2">Analysis Summary</h2>
             <pre id="summary-content" class="bg-white p-4 rounded shadow whitespace-pre-wrap"></pre>
@@ -118,13 +132,18 @@
                 });
             }
 
+            const projectSelect = document.getElementById('project-select');
+            const fileSelect = document.getElementById('file-select');
+            const fileInput = document.getElementById('file-input');
+
             const params = new URLSearchParams(window.location.search);
-            const fileId = params.get('file_id');
-            const basePath = fileId ? `/analysis_outputs/file_${fileId}` : '/analysis_outputs';
+            let currentFileId = params.get('file_id');
+
             const token = localStorage.getItem('authToken');
 
-            const loadResults = () => {
-                axios.get(`/correlation-summary${fileId ? `?file_id=${fileId}` : ''}`)
+            function loadResults(id = null) {
+                const path = id ? `/analysis_outputs/file_${id}` : '/analysis_outputs';
+                axios.get(`/correlation-summary${id ? `?file_id=${id}` : ''}`)
                     .then(res => {
                         document.getElementById('summary-content').textContent = JSON.stringify(res.data, null, 2);
                         document.getElementById('detected-date').textContent = res.data.rolling_correlation.first_significant_date || 'None';
@@ -134,8 +153,7 @@
                         document.getElementById('detected-date').textContent = 'None';
                     });
 
-                // Load merged data for scatter matrix
-                axios.get(`${basePath}/merged_data.json`)
+                axios.get(`${path}/merged_data.json`)
                     .then(res => {
                         const data = res.data;
                         const cols = data.columns;
@@ -151,24 +169,94 @@
                         Plotly.newPlot('scatter-matrix', [{type: 'splom', dimensions, marker: {size: 5}}], {title: 'Scatter Matrix'});
                     });
 
-                document.getElementById('rainfall-ccf').src = `${basePath}/rainfall_ccf.png`;
-                document.getElementById('temperature-ccf').src = `${basePath}/temperature_ccf.png`;
-                document.getElementById('rolling-correlation').src = `${basePath}/rolling_correlation.png`;
-                document.getElementById('tvccf-peaks').src = `${basePath}/tvccf_peaks.png`;
-                document.getElementById('granger-causality').src = `${basePath}/granger_causality.png`;
-                document.getElementById('correlation-change-points').src = `${basePath}/correlation_change_points.png`;
-                document.getElementById('wavelet-coherence').src = `${basePath}/wavelet_coherence.png`;
-                document.getElementById('tvp-regression').src = `${basePath}/tvp_regression.png`;
-                document.getElementById('mutual-information').src = `${basePath}/mutual_information.png`;
-                document.getElementById('hmm-states').src = `${basePath}/hmm_states.png`;
-            };
+                document.getElementById('rainfall-ccf').src = `${path}/rainfall_ccf.png`;
+                document.getElementById('temperature-ccf').src = `${path}/temperature_ccf.png`;
+                document.getElementById('rolling-correlation').src = `${path}/rolling_correlation.png`;
+                document.getElementById('tvccf-peaks').src = `${path}/tvccf_peaks.png`;
+                document.getElementById('granger-causality').src = `${path}/granger_causality.png`;
+                document.getElementById('correlation-change-points').src = `${path}/correlation_change_points.png`;
+                document.getElementById('wavelet-coherence').src = `${path}/wavelet_coherence.png`;
+                document.getElementById('tvp-regression').src = `${path}/tvp_regression.png`;
+                document.getElementById('mutual-information').src = `${path}/mutual_information.png`;
+                document.getElementById('hmm-states').src = `${path}/hmm_states.png`;
+            }
 
-            if (fileId && token) {
-                axios.post('/run-correlation', { file_id: parseInt(fileId) }, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                })
-                    .then(loadResults)
-                    .catch(() => loadResults());
+            async function performCorrelation() {
+                if (!currentFileId) { loadResults(); return; }
+                if (!token) { loadResults(currentFileId); return; }
+                try {
+                    await fetch('/run-correlation', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ file_id: parseInt(currentFileId) })
+                    });
+                } catch (e) {}
+                loadResults(currentFileId);
+            }
+
+            async function loadProjects() {
+                if (!token) return;
+                const res = await fetch('/projects', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!res.ok) return;
+                const data = await res.json();
+                projectSelect.innerHTML = '';
+                data.projects.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name;
+                    projectSelect.appendChild(opt);
+                });
+                const saved = localStorage.getItem('selectedProjectId');
+                if (saved) projectSelect.value = saved;
+                if (data.projects.length > 0) await loadFiles();
+            }
+
+            async function loadFiles() {
+                if (!token) return;
+                const pid = projectSelect.value;
+                if (!pid) return;
+                const res = await fetch(`/projects/${pid}/files`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!res.ok) return;
+                const data = await res.json();
+                fileSelect.innerHTML = '';
+                data.files.forEach(f => {
+                    const opt = document.createElement('option');
+                    opt.value = f.id;
+                    opt.textContent = f.filename;
+                    fileSelect.appendChild(opt);
+                });
+                if (data.files.length > 0) {
+                    fileSelect.value = data.files[0].id;
+                    currentFileId = data.files[0].id;
+                    performCorrelation();
+                }
+            }
+
+            async function uploadAndRun() {
+                if (!token || !fileInput.files.length) return;
+                const pid = projectSelect.value;
+                const form = new FormData();
+                form.append('file', fileInput.files[0]);
+                form.append('project_id', pid);
+                const res = await fetch('/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: form });
+                if (res.ok) {
+                    const data = await res.json();
+                    currentFileId = data.file_id;
+                    await loadFiles();
+                    performCorrelation();
+                } else {
+                    alert('Upload failed');
+                }
+            }
+
+            if (fileInput) fileInput.addEventListener('change', uploadAndRun);
+            if (projectSelect) projectSelect.addEventListener('change', () => { localStorage.setItem('selectedProjectId', projectSelect.value); loadFiles(); });
+            if (fileSelect) fileSelect.addEventListener('change', () => { currentFileId = fileSelect.value; performCorrelation(); });
+
+            if (token) {
+                loadProjects();
+            } else if (currentFileId) {
+                performCorrelation();
             } else {
                 loadResults();
             }
