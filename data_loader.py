@@ -11,8 +11,10 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Optional directory containing real data files. If files are not found,
-# synthetic example data will be generated instead.
-DATA_DIR = Path("data")
+# synthetic example data will be generated instead. Use a path relative to this
+# file so the directory can be located regardless of the current working
+# directory when the app is launched.
+DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
 def _load_real_dataset(filename: str) -> Optional[pd.DataFrame]:
