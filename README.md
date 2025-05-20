@@ -40,6 +40,10 @@ The application will be available at `http://localhost:8000`.
 When the server starts, a correlation analysis between movement,
 rainfall and temperature data is executed automatically and the
 generated plots are saved in the `analysis_outputs` directory.
+To run the same correlation analysis on your uploaded data, send a
+POST request to `/analyse/correlation` with the `file_id` of the
+uploaded dataset. The results will overwrite the files in
+`analysis_outputs` which are then shown on the correlation page.
 
 ## Usage
 

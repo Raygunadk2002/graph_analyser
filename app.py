@@ -23,7 +23,7 @@ import aiohttp
 from pydantic import BaseModel
 from database import db
 import traceback
-from analysis import analyze_movement_rain_temp
+from analysis import analyze_movement_rain_temp, analyze_user_dataframe
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -1388,6 +1388,34 @@ async def advanced_analysis(data: dict):
     except Exception as e:
         logger.error(f"Error in advanced analysis: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error in advanced analysis: {str(e)}")
+
+
+@app.post("/analyse/correlation")
+async def correlation_analysis(data: dict):
+    """Run correlation analysis on a stored dataset."""
+    try:
+        file_id = data.get("file_id")
+        if not file_id:
+            raise HTTPException(status_code=400, detail="file_id required")
+
+        df = db.get_file_data(file_id)
+        if df is None:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        latest = db.get_latest_analysis(file_id)
+        if not latest:
+            raise HTTPException(status_code=400, detail="No analysis mapping available. Please perform basic analysis first.")
+
+        mapping = latest["mapping"]
+        analyze_user_dataframe(df, mapping, ANALYSIS_OUTPUT_DIR)
+
+        return {"status": "success"}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error in correlation analysis: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error in correlation analysis: {str(e)}")
 
 def detect_pattern_type(df):
     # Implement pattern detection logic

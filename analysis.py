@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 import numpy as np
 from scipy import stats
 from pathlib import Path
@@ -371,23 +371,9 @@ def compute_hmm_regime(
     return onset
 
 
-def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> None:
-    """Run three-way analysis of movement, rainfall and temperature.
-
-    Parameters
-    ----------
-    output_dir : Path, optional
-        Directory where result plots will be written. Created if it does not
-        already exist.
-    """
+def _run_correlation_pipeline(df: pd.DataFrame, output_dir: Path) -> None:
+    """Execute correlation analyses given a prepared dataframe."""
     output_dir.mkdir(exist_ok=True, parents=True)
-    logger.info("Loading data...")
-    df_mov = load_monitoring_data()
-    df_rain = load_rainfall_data()
-    df_temp = load_temperature_data()
-
-    logger.info("Merging and resampling data...")
-    df = merge_and_resample([df_mov, df_rain, df_temp])
 
     # Save merged data for interactive plotting
     (output_dir / "merged_data.json").write_text(
@@ -497,3 +483,45 @@ def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> N
         json.dump(summary, f, indent=2, default=float)
 
     logger.info("Analysis complete. Plots saved to %s", output_dir.resolve())
+
+
+def analyze_movement_rain_temp(output_dir: Path = Path("analysis_outputs")) -> None:
+    """Run example correlation analysis using generated data."""
+    logger.info("Loading example data...")
+    df_mov = load_monitoring_data()
+    df_rain = load_rainfall_data()
+    df_temp = load_temperature_data()
+
+    logger.info("Merging and resampling data...")
+    df = merge_and_resample([df_mov, df_rain, df_temp])
+    _run_correlation_pipeline(df, output_dir)
+
+
+def analyze_user_dataframe(
+    df: pd.DataFrame,
+    mapping: Dict[str, str],
+    output_dir: Path = Path("analysis_outputs"),
+) -> None:
+    """Run correlation analysis on a user-provided dataframe."""
+    time_col = mapping.get("time")
+    if not time_col:
+        raise ValueError("time column not specified in mapping")
+
+    rename = {time_col: "timestamp"}
+    if mapping.get("x"):
+        rename[mapping["x"]] = "movement_mm"
+    if mapping.get("y"):
+        rename[mapping["y"]] = "rainfall_mm"
+    if mapping.get("t"):
+        rename[mapping["t"]] = "temperature_C"
+
+    missing = [orig for orig in rename if orig not in df.columns]
+    if missing:
+        raise ValueError(f"Columns not found in dataframe: {missing}")
+
+    df = df.rename(columns=rename)
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df = df.sort_values("timestamp")
+    df = df.set_index("timestamp").resample("D").mean().dropna().reset_index()
+
+    _run_correlation_pipeline(df, output_dir)
