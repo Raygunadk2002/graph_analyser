@@ -121,44 +121,57 @@
             const params = new URLSearchParams(window.location.search);
             const fileId = params.get('file_id');
             const basePath = fileId ? `/analysis_outputs/file_${fileId}` : '/analysis_outputs';
+            const token = localStorage.getItem('authToken');
 
-            axios.get(`/correlation-summary${fileId ? `?file_id=${fileId}` : ''}`)
-                .then(res => {
-                    document.getElementById('summary-content').textContent = JSON.stringify(res.data, null, 2);
-                    document.getElementById('detected-date').textContent = res.data.rolling_correlation.first_significant_date || 'None';
+            const loadResults = () => {
+                axios.get(`/correlation-summary${fileId ? `?file_id=${fileId}` : ''}`)
+                    .then(res => {
+                        document.getElementById('summary-content').textContent = JSON.stringify(res.data, null, 2);
+                        document.getElementById('detected-date').textContent = res.data.rolling_correlation.first_significant_date || 'None';
+                    })
+                    .catch(() => {
+                        document.getElementById('summary-content').textContent = 'Summary not available';
+                        document.getElementById('detected-date').textContent = 'None';
+                    });
+
+                // Load merged data for scatter matrix
+                axios.get(`${basePath}/merged_data.json`)
+                    .then(res => {
+                        const data = res.data;
+                        const cols = data.columns;
+                        const rows = data.data;
+                        const idxMov = cols.indexOf('movement_mm');
+                        const idxRain = cols.indexOf('rainfall_mm');
+                        const idxTemp = cols.indexOf('temperature_C');
+                        const dimensions = [
+                            {label: 'Movement', values: rows.map(r => r[idxMov])},
+                            {label: 'Rainfall', values: rows.map(r => r[idxRain])},
+                            {label: 'Temperature', values: rows.map(r => r[idxTemp])}
+                        ];
+                        Plotly.newPlot('scatter-matrix', [{type: 'splom', dimensions, marker: {size: 5}}], {title: 'Scatter Matrix'});
+                    });
+
+                document.getElementById('rainfall-ccf').src = `${basePath}/rainfall_ccf.png`;
+                document.getElementById('temperature-ccf').src = `${basePath}/temperature_ccf.png`;
+                document.getElementById('rolling-correlation').src = `${basePath}/rolling_correlation.png`;
+                document.getElementById('tvccf-peaks').src = `${basePath}/tvccf_peaks.png`;
+                document.getElementById('granger-causality').src = `${basePath}/granger_causality.png`;
+                document.getElementById('correlation-change-points').src = `${basePath}/correlation_change_points.png`;
+                document.getElementById('wavelet-coherence').src = `${basePath}/wavelet_coherence.png`;
+                document.getElementById('tvp-regression').src = `${basePath}/tvp_regression.png`;
+                document.getElementById('mutual-information').src = `${basePath}/mutual_information.png`;
+                document.getElementById('hmm-states').src = `${basePath}/hmm_states.png`;
+            };
+
+            if (fileId && token) {
+                axios.post('/run-correlation', { file_id: parseInt(fileId) }, {
+                    headers: { 'Authorization': `Bearer ${token}` }
                 })
-                .catch(() => {
-                    document.getElementById('summary-content').textContent = 'Summary not available';
-                    document.getElementById('detected-date').textContent = 'None';
-                });
-
-            // Load merged data for scatter matrix
-            axios.get(`${basePath}/merged_data.json`)
-                .then(res => {
-                    const data = res.data;
-                    const cols = data.columns;
-                    const rows = data.data;
-                    const idxMov = cols.indexOf('movement_mm');
-                    const idxRain = cols.indexOf('rainfall_mm');
-                    const idxTemp = cols.indexOf('temperature_C');
-                    const dimensions = [
-                        {label: 'Movement', values: rows.map(r => r[idxMov])},
-                        {label: 'Rainfall', values: rows.map(r => r[idxRain])},
-                        {label: 'Temperature', values: rows.map(r => r[idxTemp])}
-                    ];
-                    Plotly.newPlot('scatter-matrix', [{type: 'splom', dimensions, marker: {size: 5}}], {title: 'Scatter Matrix'});
-                });
-
-            document.getElementById('rainfall-ccf').src = `${basePath}/rainfall_ccf.png`;
-            document.getElementById('temperature-ccf').src = `${basePath}/temperature_ccf.png`;
-            document.getElementById('rolling-correlation').src = `${basePath}/rolling_correlation.png`;
-            document.getElementById('tvccf-peaks').src = `${basePath}/tvccf_peaks.png`;
-            document.getElementById('granger-causality').src = `${basePath}/granger_causality.png`;
-            document.getElementById('correlation-change-points').src = `${basePath}/correlation_change_points.png`;
-            document.getElementById('wavelet-coherence').src = `${basePath}/wavelet_coherence.png`;
-            document.getElementById('tvp-regression').src = `${basePath}/tvp_regression.png`;
-            document.getElementById('mutual-information').src = `${basePath}/mutual_information.png`;
-            document.getElementById('hmm-states').src = `${basePath}/hmm_states.png`;
+                    .then(loadResults)
+                    .catch(() => loadResults());
+            } else {
+                loadResults();
+            }
 
         });
     </script>

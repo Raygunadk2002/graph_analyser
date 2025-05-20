@@ -51,6 +51,9 @@ for demonstration purposes.
 1. Open `http://localhost:8000` and create an account or log in.
 2. After logging in you will be redirected to the dashboard at `/dashboard`.
 3. Create a project and upload one or more files for analysis.
+4. To view rainfall and temperature correlations for an uploaded file, open
+   `/correlation?file_id=YOUR_FILE_ID`. The page will automatically run the
+   correlation analysis for that file and display the resulting plots.
 
 ## Data Format
 
